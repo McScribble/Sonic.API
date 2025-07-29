@@ -1,6 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /app
 
+# Install PostgreSQL client for testing
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
 # Copy csproj file and restore dependencies
 COPY *.csproj ./
 RUN dotnet restore
@@ -14,13 +17,28 @@ COPY . .
 
 # Create a script to run migrations with error handling
 RUN echo '#!/bin/bash\n\
+set -e\n\
 echo "Starting EF Core migrations..."\n\
 echo "Connection string: $SONIC_AUTH_DB_CONNECTION_STRING"\n\
+\n\
+# Test basic connectivity first\n\
+echo "Testing connection with psql..."\n\
+export PGPASSWORD="mfh9.+=Y/Jn\"u]l/"\n\
+echo "SELECT version();" | psql -h /cloudsql/sonic-467415:us-central1:sonic-postgre -U postgres -d Sonic-Prod || echo "psql connection failed"\n\
+\n\
 echo "Listing available contexts:"\n\
-dotnet ef dbcontext list\n\
+dotnet ef dbcontext list --context SonicDbContext || echo "Failed to list contexts"\n\
+\n\
+echo "Getting migration status:"\n\
+dotnet ef migrations list --context SonicDbContext || echo "Failed to list migrations"\n\
+\n\
 echo "Running database update:"\n\
 dotnet ef database update --context SonicDbContext --verbose\n\
-echo "Migration completed with exit code: $?"' > /app/migrate.sh && chmod +x /app/migrate.sh
+\n\
+echo "Checking applied migrations:"\n\
+echo "SELECT * FROM \"__EFMigrationsHistory\";" | psql -h /cloudsql/sonic-467415:us-central1:sonic-postgre -U postgres -d Sonic-Prod || echo "No migrations table found"\n\
+\n\
+echo "Migration script completed successfully"' > /app/migrate.sh && chmod +x /app/migrate.sh
 
 # Set the entry point to run migrations
 ENTRYPOINT ["/app/migrate.sh"]
