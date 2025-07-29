@@ -2,11 +2,11 @@
 steps:
   # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/sonic-467415/sonic-api:$COMMIT_SHA', '.']
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA', '.']
   
-  # Push the image to Container Registry
+  # Push the image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/sonic-467415/sonic-api:$COMMIT_SHA']
+    args: ['push', 'us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA']
 
   # Deploy to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -14,7 +14,7 @@ steps:
       - 'run'
       - 'deploy'
       - 'sonic-api'
-      - '--image=gcr.io/sonic-467415/sonic-api:$COMMIT_SHA'
+      - '--image=us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA'
       - '--platform=managed'
       - '--region=us-central1'
       - '--allow-unauthenticated'
@@ -46,6 +46,6 @@ options:
 # If you need a custom service account, add:
 # serviceAccount: 'projects/sonic-467415/serviceAccounts/your-service-account@sonic-467415.iam.gserviceaccount.com'
 
-# Store images in Container Registry
+# Store images in Artifact Registry
 images:
-  - 'gcr.io/sonic-467415/sonic-api:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA'
