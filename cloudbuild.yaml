@@ -12,28 +12,10 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'migration-runner', '-f', 'Dockerfile.migrations', '.']
 
-  # Run migrations using gcloud with direct database connection
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
-    entrypoint: 'bash'
-    args:
-    - '-c'
-    - |
-      # Install .NET SDK
-      wget https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-      dpkg -i packages-microsoft-prod.deb
-      apt-get update
-      apt-get install -y dotnet-sdk-9.0
-      
-      # Install EF tools
-      dotnet tool install --global dotnet-ef
-      export PATH="$$PATH:/root/.dotnet/tools"
-      
-      # Copy source code
-      cd /workspace
-      
-      # Run migrations using Cloud SQL connection
-      export SONIC_AUTH_DB_CONNECTION_STRING="Server=35.225.141.34;Port=5432;Database=Sonic-Prod;User Id=postgres;Password=mfh9.+=Y/Jn\"u]l/;Trust Server Certificate=true;"
-      dotnet ef database update --context SonicDbContext --verbose
+  # Run migrations using our custom migration image with direct connection
+  - name: 'migration-runner'
+    env:
+    - 'SONIC_AUTH_DB_CONNECTION_STRING=Server=35.225.141.34;Port=5432;Database=Sonic-Prod;User Id=postgres;Password=mfh9.+=Y/Jn"u]l/;Trust Server Certificate=true;'
 
   # Deploy to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'

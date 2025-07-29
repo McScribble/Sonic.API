@@ -21,10 +21,10 @@ set -e\n\
 echo "Starting EF Core migrations..."\n\
 echo "Connection string: $SONIC_AUTH_DB_CONNECTION_STRING"\n\
 \n\
-# Test basic connectivity first\n\
-echo "Testing connection with psql..."\n\
+# Test basic connectivity first with psql using the public IP\n\
+echo "Testing connection with psql to public IP..."\n\
 export PGPASSWORD="mfh9.+=Y/Jn\"u]l/"\n\
-echo "SELECT version();" | psql -h /cloudsql/sonic-467415:us-central1:sonic-postgre -U postgres -d Sonic-Prod || echo "psql connection failed"\n\
+echo "SELECT version();" | psql -h 35.225.141.34 -p 5432 -U postgres -d Sonic-Prod || echo "psql connection failed"\n\
 \n\
 echo "Listing available contexts:"\n\
 dotnet ef dbcontext list --context SonicDbContext || echo "Failed to list contexts"\n\
@@ -36,7 +36,7 @@ echo "Running database update:"\n\
 dotnet ef database update --context SonicDbContext --verbose\n\
 \n\
 echo "Checking applied migrations:"\n\
-echo "SELECT * FROM \"__EFMigrationsHistory\";" | psql -h /cloudsql/sonic-467415:us-central1:sonic-postgre -U postgres -d Sonic-Prod || echo "No migrations table found"\n\
+echo "SELECT * FROM \"__EFMigrationsHistory\";" | psql -h 35.225.141.34 -p 5432 -U postgres -d Sonic-Prod || echo "No migrations table found"\n\
 \n\
 echo "Migration script completed successfully"' > /app/migrate.sh && chmod +x /app/migrate.sh
 
