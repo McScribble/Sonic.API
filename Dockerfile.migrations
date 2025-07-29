@@ -12,5 +12,15 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 # Copy everything else
 COPY . .
 
-# Set the entry point for EF commands
-ENTRYPOINT ["dotnet", "ef", "database", "update"]
+# Create a script to run migrations with error handling
+RUN echo '#!/bin/bash\n\
+echo "Starting EF Core migrations..."\n\
+echo "Connection string: $SONIC_AUTH_DB_CONNECTION_STRING"\n\
+echo "Listing available contexts:"\n\
+dotnet ef dbcontext list\n\
+echo "Running database update:"\n\
+dotnet ef database update --context SonicDbContext --verbose\n\
+echo "Migration completed with exit code: $?"' > /app/migrate.sh && chmod +x /app/migrate.sh
+
+# Set the entry point to run migrations
+ENTRYPOINT ["/app/migrate.sh"]
