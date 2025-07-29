@@ -36,11 +36,11 @@ steps:
       - '--set-secrets=GOOGLE_FIELDMASK_PLACE_AUTOCOMPLETE=GOOGLE_FIELDMASK_PLACE_AUTOCOMPLETE:latest'
       - '--set-secrets=GOOGLE_FIELDMASK_PLACE_DETAILS=GOOGLE_FIELDMASK_PLACE_DETAILS:latest'
       - '--add-cloudsql-instances=sonic-467415:us-central1:sonic-postgres'
-      - '--service-account=sonic-api-service@sonic-467415.iam.gserviceaccount.com'
 
 # Specify the machine type for Cloud Build
 options:
   machineType: 'E2_HIGHCPU_8'
+  logging: 'CLOUD_LOGGING_ONLY'
 
 # Store images in Container Registry
 images:
