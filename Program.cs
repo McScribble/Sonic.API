@@ -142,6 +142,24 @@ TypeAdapterConfig.GlobalSettings.Default
 
 var app = builder.Build();
 
+// Apply database migrations on startup (for production deployment)
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var context = scope.ServiceProvider.GetRequiredService<SonicDbContext>();
+        
+        Log.Information("Applying database migrations...");
+        context.Database.Migrate();
+        Log.Information("Database migrations applied successfully.");
+    }
+}
+catch (Exception ex)
+{
+    Log.Error(ex, "An error occurred while applying database migrations.");
+    // Don't throw - let the app start even if migrations fail (for debugging)
+}
+
 // Make sure this comes BEFORE your endpoints
 app.MapAuthEndpoints();
 app.MapUserEndpoints();

@@ -8,17 +8,6 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA']
 
-  # Build migration image with EF tools and Cloud SQL proxy
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'migration-runner', '-f', 'Dockerfile.migrations', '.']
-
-  # Run migrations using Cloud SQL connection via unix socket
-  - name: 'migration-runner'
-    env:
-    - 'CLOUDSQL_INSTANCE=sonic-467415:us-central1:sonic-postgre'
-    - 'SONIC_AUTH_DB_CONNECTION_STRING=Server=/cloudsql/sonic-467415:us-central1:sonic-postgre;Database=Sonic-Prod;User Id=postgres;Password=$$DB_PASSWORD;'
-    secretEnv: ['DB_PASSWORD']
-
   # Deploy to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
@@ -60,9 +49,3 @@ options:
 # Store images in Artifact Registry
 images:
   - 'us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA'
-
-# Available secrets for build steps
-availableSecrets:
-  secretManager:
-  - versionName: projects/sonic-467415/secrets/DB_PASSWORD/versions/latest
-    env: 'DB_PASSWORD'
