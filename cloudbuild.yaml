@@ -12,10 +12,9 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'migration-runner', '-f', 'Dockerfile.migrations', '.']
 
-  # Run migrations using our custom migration image with direct connection
+  # Run migrations using our custom migration image with secret
   - name: 'migration-runner'
-    env:
-    - 'SONIC_AUTH_DB_CONNECTION_STRING=Server=35.225.141.34;Port=5432;Database=Sonic-Prod;User Id=postgres;Password=mfh9.+=Y/Jn"u]l/;Trust Server Certificate=true;'
+    secretEnv: ['SONIC_AUTH_DB_CONNECTION_STRING']
 
   # Deploy to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -58,3 +57,9 @@ options:
 # Store images in Artifact Registry
 images:
   - 'us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA'
+
+# Available secrets for build steps
+availableSecrets:
+  secretManager:
+  - versionName: projects/sonic-467415/secrets/SONIC_AUTH_DB_CONNECTION_STRING/versions/latest
+    env: 'SONIC_AUTH_DB_CONNECTION_STRING'
