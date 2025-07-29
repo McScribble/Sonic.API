@@ -1,0 +1,6 @@
+@Sonic.API_HostAddress = http://localhost:5020
+
+GET {{Sonic.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
