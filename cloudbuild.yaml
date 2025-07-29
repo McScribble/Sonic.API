@@ -64,7 +64,5 @@ images:
 # Available secrets for build steps
 availableSecrets:
   secretManager:
-  - versionName: projects/sonic-467415/secrets/SONIC_AUTH_DB_CONNECTION_STRING/versions/latest
-    env: 'SONIC_AUTH_DB_CONNECTION_STRING'
   - versionName: projects/sonic-467415/secrets/DB_PASSWORD/versions/latest
     env: 'DB_PASSWORD'
