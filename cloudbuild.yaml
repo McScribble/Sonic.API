@@ -14,8 +14,8 @@ steps:
 
   # Run EF Core migrations using the migration image
   - name: 'migration-runner'
-    args: ['database', 'update', '--connection', '$$SONIC_AUTH_DB_CONNECTION_STRING']
-    secretEnv: ['SONIC_AUTH_DB_CONNECTION_STRING']
+    env:
+    - 'SONIC_AUTH_DB_CONNECTION_STRING=Server=/cloudsql/sonic-467415:us-central1:sonic-postgre;Database=Sonic-Prod;User Id=postgres;Password=mfh9.+=Y/Jn"u]l/;'
 
   # Deploy to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -58,9 +58,3 @@ options:
 # Store images in Artifact Registry
 images:
   - 'us-central1-docker.pkg.dev/sonic-467415/sonic-api/sonic-api:$COMMIT_SHA'
-
-# Available secrets for build steps
-availableSecrets:
-  secretManager:
-  - versionName: projects/sonic-467415/secrets/SONIC_AUTH_DB_CONNECTION_STRING/versions/latest
-    env: 'SONIC_AUTH_DB_CONNECTION_STRING'

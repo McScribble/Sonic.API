@@ -13,4 +13,4 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 COPY . .
 
 # Set the entry point for EF commands
-ENTRYPOINT ["dotnet", "ef"]
+ENTRYPOINT ["dotnet", "ef", "database", "update"]
