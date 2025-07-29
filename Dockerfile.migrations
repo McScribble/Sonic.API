@@ -1,0 +1,16 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0
+WORKDIR /app
+
+# Copy csproj file and restore dependencies
+COPY *.csproj ./
+RUN dotnet restore
+
+# Install EF Core tools
+RUN dotnet tool install --global dotnet-ef
+ENV PATH="$PATH:/root/.dotnet/tools"
+
+# Copy everything else
+COPY . .
+
+# Set the entry point for EF commands
+ENTRYPOINT ["dotnet", "ef"]
