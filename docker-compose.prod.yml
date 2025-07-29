@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  sonic-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    # Add any production-specific configurations here
+    
+  # Uncomment and configure if using PostgreSQL in production
+  # postgres:
+  #   environment:
+  #     POSTGRES_DB: ${POSTGRES_DB:-Sonic-Prod}
+  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #   volumes:
+  #     - postgres_prod_data:/var/lib/postgresql/data
+
+# volumes:
+#   postgres_prod_data:

@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  sonic-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sonic-api:latest
+    container_name: sonic-api-container
+    ports:
+      - "8080:8080"  # HTTP
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+    env_file:
+      - .env
+    volumes:
+      - ./Logs:/app/Logs
+    restart: unless-stopped
+    networks:
+      - sonic-network
+
+  # PostgreSQL database (optional - uncomment if you want to run the database in Docker too)
+  # postgres:
+  #   image: postgres:15
+  #   container_name: sonic-postgres
+  #   environment:
+  #     POSTGRES_DB: Sonic-Dev
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: Varussell1!
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - sonic-network
+
+networks:
+  sonic-network:
+    driver: bridge
+
+# volumes:
+#   postgres_data:

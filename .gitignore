@@ -417,7 +417,7 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# Docker
-.dockerignore
-Dockerfile
-docker-compose*.yml
+# Docker - keep docker files in repo for deployment
+# .dockerignore
+# Dockerfile
+# docker-compose*.yml
