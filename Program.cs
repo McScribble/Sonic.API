@@ -11,9 +11,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Mapster;
 
-// Load environment variables from .env file
-Env.Load();
-
 // Configure Serilog for file logging
 Log.Logger = new LoggerConfiguration()
     .WriteTo.File("Logs/log-.txt", rollingInterval: RollingInterval.Day)
@@ -22,6 +19,12 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load environment variables from .env file (only in development)
+if (builder.Environment.IsDevelopment())
+{
+    Env.Load();
+}
 
 // Add Mapster mapping configuration
 MappingProfile.Register();
@@ -42,18 +45,24 @@ builder.Services.AddCors(options =>
                 "http://localhost:4173", 
                 "http://localhost:5153", 
                 "https://localhost:7153",
-                "https://welcomed-integral-lacewing.ngrok-free.app")
+                "https://sonic-api-*-uc.a.run.app" // Cloud Run URL pattern
+                ) 
                    .AllowAnyMethod()
-                   //.AllowAnyOrigin()
                    .AllowCredentials()
                    .AllowAnyHeader();
         });
 });
 
+// Helper method to get environment variables (works with both .env and Cloud Run)
+static string GetEnvironmentVariable(string key)
+{
+    return Environment.GetEnvironmentVariable(key) ?? Env.GetString(key) ?? "";
+}
+
 // Register KCRMDbContext with PostgreSQL provider using connection string from environment
 builder.Services.AddDbContext<SonicDbContext>(options =>
 {
-    options.UseNpgsql(Env.GetString("SONIC_AUTH_DB_CONNECTION_STRING"));
+    options.UseNpgsql(GetEnvironmentVariable("SONIC_AUTH_DB_CONNECTION_STRING"));
 });
 // Register IAuthService with AuthService implementation
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -84,7 +93,7 @@ builder.Services.AddScoped<IEntityService<InstrumentDto, InstrumentCreateDto, In
 // Add HttpClient for SpotifyService if it needs to make external API calls
 builder.Services.AddHttpClient<ISpotifyService, SpotifyService>(client =>
 {
-    client.BaseAddress = new Uri(Env.GetString("SPOTIFY_TOKEN_URL"));
+    client.BaseAddress = new Uri(GetEnvironmentVariable("SPOTIFY_TOKEN_URL"));
 });
 // Add HttpClient for MapsHttpService
 builder.Services.AddHttpClient<IMapsHttpService, MapsHttpService>(client =>
@@ -97,8 +106,8 @@ builder.Services.AddAuthentication("Bearer")
     .AddCookie()
     .AddGoogle(options =>
     {
-        options.ClientId = Env.GetString("GOOGLEAUTH_CLIENT_ID");
-        options.ClientSecret = Env.GetString("GOOGLEAUTH_CLIENT_SECRET");
+        options.ClientId = GetEnvironmentVariable("GOOGLEAUTH_CLIENT_ID");
+        options.ClientSecret = GetEnvironmentVariable("GOOGLEAUTH_CLIENT_SECRET");
         options.SaveTokens = true; // Save tokens for later use
         options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     })
@@ -111,10 +120,10 @@ builder.Services.AddAuthentication("Bearer")
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = Env.GetString("ISSUER"),
-            ValidAudience = Env.GetString("AUDIENCE"),
+            ValidIssuer = GetEnvironmentVariable("ISSUER"),
+            ValidAudience = GetEnvironmentVariable("AUDIENCE"),
             IssuerSigningKey = new SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(Env.GetString("TOKEN")))
+                System.Text.Encoding.UTF8.GetBytes(GetEnvironmentVariable("TOKEN")))
         };
     });
 
