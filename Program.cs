@@ -59,10 +59,46 @@ static string GetEnvironmentVariable(string key)
     return Environment.GetEnvironmentVariable(key) ?? Env.GetString(key) ?? "";
 }
 
-// Register KCRMDbContext with PostgreSQL provider using connection string from environment
+// Helper method to get Cloud SQL connection string with proper format for Cloud Run
+static string GetCloudSqlConnectionString()
+{
+    var connectionString = GetEnvironmentVariable("SONIC_AUTH_DB_CONNECTION_STRING");
+    
+    // If running in Cloud Run (production), ensure we use Unix socket format
+    if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production")
+    {
+        // Check if connection string already uses Unix socket format
+        if (!connectionString.Contains("/cloudsql/"))
+        {
+            // Convert TCP format to Unix socket format for Cloud SQL
+            // Expected format: Host=/cloudsql/PROJECT_ID:REGION:INSTANCE_NAME;Database=...;Username=...;Password=...
+            var cloudSqlInstance = "sonic-467415:us-central1:sonic-postgre";
+            
+            // Extract database, username, password from existing connection string
+            var parts = connectionString.Split(';');
+            var dbName = "sonic";
+            var username = "postgres";
+            var password = "";
+            
+            foreach (var part in parts)
+            {
+                if (part.StartsWith("Database=")) dbName = part.Split('=')[1];
+                if (part.StartsWith("Username=") || part.StartsWith("User ID=")) username = part.Split('=')[1];
+                if (part.StartsWith("Password=")) password = part.Split('=')[1];
+            }
+            
+            connectionString = $"Host=/cloudsql/{cloudSqlInstance};Database={dbName};Username={username};Password={password}";
+            Log.Information("Converted connection string to Cloud SQL Unix socket format");
+        }
+    }
+    
+    return connectionString;
+}
+
+// Register KCRMDbContext with PostgreSQL provider using Cloud SQL connection string
 builder.Services.AddDbContext<SonicDbContext>(options =>
 {
-    options.UseNpgsql(GetEnvironmentVariable("SONIC_AUTH_DB_CONNECTION_STRING"));
+    options.UseNpgsql(GetCloudSqlConnectionString());
 });
 // Register IAuthService with AuthService implementation
 builder.Services.AddScoped<IAuthService, AuthService>();

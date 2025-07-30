@@ -1,0 +1,8 @@
+name: sonic-api-deploy
+description: Deploy Sonic API to Cloud Run
+github:
+  owner: McScribble
+  name: Sonic.API
+  push:
+    branch: ^main$
+filename: cloudbuild.yaml
