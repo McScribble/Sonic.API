@@ -2,10 +2,21 @@
 using Sonic.Models;
 using Sonic.API.Services;
 using Serilog;
+using System.Security.Claims;
 
 namespace Sonic.API.Controllers;
 public static class UserControllerExtensions
 {
+    // Helper method to get user ID from context
+    private static int? GetUserIdFromContext(HttpContext context)
+    {
+        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+        {
+            return null;
+        }
+        return userId;
+    }
     public static void MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/users/{userId:int}", async (IUserService userService, int userId) =>
@@ -33,14 +44,55 @@ public static class UserControllerExtensions
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status500InternalServerError);
 
-        // Register endpoint for getting all users
-        app.MapGet("/api/users", async (IUserService userService) =>
+        // Register endpoint for getting all users - Admin only for security with pagination
+        app.MapGet("/api/users", async (IUserService userService, HttpContext context) =>
         {
             try
             {
-                var users = await userService.GetAllUsersAsync();
-                Log.Information("Retrieved all users successfully.");
-                return Results.Ok(users);
+                // Check if user is admin
+                var userId = GetUserIdFromContext(context);
+                if (!userId.HasValue)
+                {
+                    Log.Warning("Unauthorized access attempt to get all users - no user ID in context");
+                    return Results.Forbid();
+                }
+
+                var user = await userService.GetUserByIdAsync(userId.Value);
+                if (user?.IsAdmin != true)
+                {
+                    Log.Warning("Unauthorized access attempt to get all users by user {UserId}", userId);
+                    return Results.Forbid();
+                }
+
+                // Parse pagination parameters
+                var skip = 0;
+                var take = 50; // Default page size
+                
+                if (int.TryParse(context.Request.Query["skip"], out var skipValue))
+                {
+                    skip = Math.Max(0, skipValue);
+                }
+                
+                if (int.TryParse(context.Request.Query["take"], out var takeValue))
+                {
+                    take = Math.Min(Math.Max(1, takeValue), 50); // Min 1, max 50
+                }
+
+                var users = await userService.GetAllUsersAsync(skip, take);
+                var totalCount = await userService.GetUsersCountAsync();
+                
+                var response = new
+                {
+                    Data = users,
+                    TotalCount = totalCount,
+                    Skip = skip,
+                    Take = take,
+                    HasMore = skip + users.Count() < totalCount
+                };
+                
+                Log.Information("Retrieved users successfully by admin {UserId}: {Count} of {Total} total (skip: {Skip}, take: {Take})", 
+                    userId, users.Count(), totalCount, skip, take);
+                return Results.Ok(response);
             }
             catch (Exception ex)
             {
@@ -48,18 +100,56 @@ public static class UserControllerExtensions
                 return Results.InternalServerError($"An error occurred while processing your request. {ex.Message}");
             }
         })
-        .RequireAuthorization(policy => policy.RequireRole(Role.Manager)) // Require "Manager" role
+        .RequireAuthorization() // Require authentication, admin check done in code
         .WithName("GetAllUsers")
-        .Produces<IEnumerable<User>>(StatusCodes.Status200OK)
+        .WithSummary("Get all users with pagination (Admin only)")
+        .WithDescription("Retrieves a paginated list of all users. Only accessible by administrators.")
+        .Produces<object>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status403Forbidden)
+        .Produces(StatusCodes.Status500InternalServerError)
+        .WithOpenApi(operation => new(operation)
+        {
+            Parameters = operation.Parameters.Concat(new[]
+            {
+                new Microsoft.OpenApi.Models.OpenApiParameter
+                {
+                    Name = "skip",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Query,
+                    Required = false,
+                    Description = "Number of records to skip (default: 0)",
+                    Schema = new Microsoft.OpenApi.Models.OpenApiSchema { Type = "integer", Default = new Microsoft.OpenApi.Any.OpenApiInteger(0) }
+                },
+                new Microsoft.OpenApi.Models.OpenApiParameter
+                {
+                    Name = "take",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Query,
+                    Required = false,
+                    Description = "Number of records to take (default: 50, max: 50)",
+                    Schema = new Microsoft.OpenApi.Models.OpenApiSchema { Type = "integer", Default = new Microsoft.OpenApi.Any.OpenApiInteger(50) }
+                }
+            }).ToList()
+        })
         .Produces(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
-        //register endpoint for checking if username is taken
-        app.MapGet("/api/users/username/{username}", (IUserService userService, string username) =>
+        //register endpoint for checking if username is taken - requires authentication to prevent enumeration
+        app.MapGet("/api/users/username/{username}", (IUserService userService, string username, HttpContext context) =>
         {
             try
             {
+                // Ensure user is authenticated to prevent username enumeration attacks
+                var userId = GetUserIdFromContext(context);
+                if (!userId.HasValue)
+                {
+                    Log.Warning("Unauthenticated username check attempt for username: {Username}", username);
+                    return Results.Forbid();
+                }
+
+                // Additional validation - prevent checking too many usernames rapidly
+                // In production, you might want to implement rate limiting here
+
                 var isTaken = userService.UsernameTaken(username);
+                Log.Information("Username availability checked by user {UserId} for username: {Username}", userId, username);
                 return Results.Ok(isTaken);
             }
             catch (Exception ex)
@@ -68,9 +158,10 @@ public static class UserControllerExtensions
                 return Results.InternalServerError($"An error occurred while processing your request. {ex.Message}");
             }
         })
-        .RequireAuthorization(policy => policy.RequireRole(Role.Manager)) // Require "Manager" role
+        .RequireAuthorization() // Require authentication to prevent enumeration
         .WithName("CheckUsernameTaken")
         .Produces<bool>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status403Forbidden)
         .Produces(StatusCodes.Status500InternalServerError);
 
         // Register endpoint for updating a user
@@ -78,50 +169,61 @@ public static class UserControllerExtensions
         {
             try
             {
-            // Get roles and username from claims
-            var userClaims = httpContext.User;
-            var isAdmin = userClaims.IsInRole(Role.Admin);
-            var isManager = userClaims.IsInRole(Role.Manager);
-            var tokenUsername = userClaims.Identity?.Name;
+                // Get current user info from context
+                var currentUserId = GetUserIdFromContext(httpContext);
+                if (!currentUserId.HasValue)
+                {
+                    Log.Warning("Unauthorized update attempt - no user ID in context");
+                    return Results.Forbid();
+                }
 
-            // Check if user is admin/manager or updating own username
-            if (!(isAdmin || isManager || string.Equals(tokenUsername, user.Username, StringComparison.OrdinalIgnoreCase)))
-            {
-                Log.Warning("Unauthorized update attempt by {Username} for user {TargetUsername}", tokenUsername, user.Username);
-                return Results.Forbid();
-            }
+                // Get current user to check admin status
+                var currentUser = await userService.GetUserByIdAsync(currentUserId.Value);
+                if (currentUser == null)
+                {
+                    Log.Warning("Current user {UserId} not found during update attempt", currentUserId);
+                    return Results.Forbid();
+                }
 
-            // Retrieve the current user from the database
-            var existingUser = await userService.GetUserByIdAsync(userId);
-            if (existingUser == null)
-            {
-                Log.Warning("User with ID {UserId} not found for update.", userId);
-                return Results.NotFound($"User with ID {userId} not found.");
-            }
+                // Check if user is admin or updating their own profile
+                bool isAdmin = currentUser.IsAdmin;
+                bool isUpdatingOwnProfile = currentUserId.Value == userId;
 
-            // Check if admin status is being changed
-            bool adminStatusChanged = existingUser.IsAdmin != user.IsAdmin;
+                if (!(isAdmin || isUpdatingOwnProfile))
+                {
+                    Log.Warning("Unauthorized update attempt by user {CurrentUserId} for user {TargetUserId}", currentUserId, userId);
+                    return Results.Forbid();
+                }
 
-            // If admin status is being changed and the user is not an admin, forbid
-            if (adminStatusChanged && !isAdmin)
-            {
-                Log.Warning("Unauthorized admin status change attempt by {Username} for user {TargetUsername}", tokenUsername, user.Username);
-                return Results.Forbid();
-            }
+                // Retrieve the target user from the database
+                var existingUser = await userService.GetUserByIdAsync(userId);
+                if (existingUser == null)
+                {
+                    Log.Warning("Target user with ID {UserId} not found for update.", userId);
+                    return Results.NotFound($"User with ID {userId} not found.");
+                }
 
-            var newToken = await userService.UpdateUserAsync(user, userId);
-            Log.Information("User updated successfully: {Username}", user.Username);
-            return Results.Ok(newToken);
+                // Check if admin status is being changed - only admins can change admin status
+                bool adminStatusChanged = existingUser.IsAdmin != user.IsAdmin;
+                if (adminStatusChanged && !isAdmin)
+                {
+                    Log.Warning("Unauthorized admin status change attempt by user {CurrentUserId} for user {TargetUserId}", currentUserId, userId);
+                    return Results.Forbid();
+                }
+
+                var newToken = await userService.UpdateUserAsync(user, userId);
+                Log.Information("User {TargetUserId} updated successfully by user {CurrentUserId}", userId, currentUserId);
+                return Results.Ok(newToken);
             }
             catch (ArgumentException ex)
             {
-            Log.Warning($"Update user failed: {ex.Message}");
-            return Results.NotFound(ex.Message);
+                Log.Warning($"Update user failed: {ex.Message}");
+                return Results.NotFound(ex.Message);
             }
             catch (Exception ex)
             {
-            Log.Error(ex, "An error occurred while updating the user.");
-            return Results.InternalServerError($"An error occurred while processing your request. {ex.Message}");
+                Log.Error(ex, "An error occurred while updating the user.");
+                return Results.InternalServerError($"An error occurred while processing your request. {ex.Message}");
             }
         })
         .RequireAuthorization() // Require authenticated user

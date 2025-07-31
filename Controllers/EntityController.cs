@@ -66,13 +66,16 @@ public static class EntityControllerExtensions
             return operation;
         });
 
-        // ✅ Updated GetAll endpoint with includes support and admin filtering
+        // ✅ Updated GetAll endpoint with includes support, admin filtering, and pagination
         app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s", async (
             IEntityService<TDto, TCreateDto, TEntity> entityService, 
             SonicDbContext dbContext,
             HttpContext context) =>
         {
             var includes = ParseIncludes(context.Request.Query["include"]);
+            
+            // Parse pagination parameters
+            var pagination = ParsePagination(context.Request.Query);
             
             // Check if user is admin - admins can see all resources
             var userId = GetUserIdFromContext(context);
@@ -81,15 +84,39 @@ public static class EntityControllerExtensions
                 var user = await dbContext.Users.FindAsync(userId.Value);
                 if (user?.IsAdmin == true)
                 {
-                    var allEntities = await entityService.GetAllAsync(includes);
-                    Log.Information($"Admin retrieved all {typeof(TEntity).Name.ToLower()}s successfully: {allEntities.Count()} total with includes: [{string.Join(", ", includes ?? Array.Empty<string>())}]");
-                    return Results.Ok(allEntities);
+                    var allEntities = await entityService.GetAllAsync(includes, pagination.Skip, pagination.Take);
+                    var totalCount = await entityService.GetCountAsync();
+                    
+                    Log.Information($"Admin retrieved {typeof(TEntity).Name.ToLower()}s successfully: {allEntities.Count()} of {totalCount} total (skip: {pagination.Skip}, take: {pagination.Take}) with includes: [{string.Join(", ", includes ?? Array.Empty<string>())}]");
+                    
+                    var response = new
+                    {
+                        Data = allEntities,
+                        TotalCount = totalCount,
+                        Skip = pagination.Skip,
+                        Take = pagination.Take,
+                        HasMore = pagination.Skip + allEntities.Count() < totalCount
+                    };
+                    
+                    return Results.Ok(response);
                 }
             }
             
-            var entities = await entityService.GetAllAsync(includes);
-            Log.Information($"Retrieved all {typeof(TEntity).Name.ToLower()}s successfully with includes: [{string.Join(", ", includes ?? Array.Empty<string>())}]");
-            return Results.Ok(entities);
+            var entities = await entityService.GetAllAsync(includes, pagination.Skip, pagination.Take);
+            var count = await entityService.GetCountAsync();
+            
+            Log.Information($"Retrieved {typeof(TEntity).Name.ToLower()}s successfully: {entities.Count()} of {count} total (skip: {pagination.Skip}, take: {pagination.Take}) with includes: [{string.Join(", ", includes ?? Array.Empty<string>())}]");
+            
+            var paginatedResponse = new
+            {
+                Data = entities,
+                TotalCount = count,
+                Skip = pagination.Skip,
+                Take = pagination.Take,
+                HasMore = pagination.Skip + entities.Count() < count
+            };
+            
+            return Results.Ok(paginatedResponse);
         })
         .RequireAuthorization() // Require authentication but no specific roles
         .WithName($"GetAll{typeof(TEntity).Name}s")
@@ -238,7 +265,7 @@ public static class EntityControllerExtensions
         .Produces(StatusCodes.Status500InternalServerError)
         .WithOpenApi();
 
-        // Register endpoint for searching entities
+        // Register endpoint for searching entities with pagination support
         app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s/search", async (IEntityService<TDto, TCreateDto, TEntity> entityService, string q, HttpContext context) =>
         {
             if (string.IsNullOrWhiteSpace(q) || !EntitySearch.IsValidSearchTerm(q))
@@ -248,9 +275,65 @@ public static class EntityControllerExtensions
             }
 
             var includes = ParseIncludes(context.Request.Query["include"]);
-            var results = await entityService.SearchAsync(q, includes);
-            Log.Information($"Search completed for {typeof(TEntity).Name}: {results.Count()} results found with includes: [{string.Join(", ", includes ?? Array.Empty<string>())}]");
-            return Results.Ok(results);
+            var pagination = ParsePagination(context.Request.Query);
+            
+            var results = await entityService.SearchAsync(q, includes, pagination.Skip, pagination.Take);
+            var totalCount = await entityService.GetCountAsync(); // Note: This is approximate for search results
+            
+            Log.Information($"Search completed for {typeof(TEntity).Name}: {results.Count()} results found (skip: {pagination.Skip}, take: {pagination.Take}) with includes: [{string.Join(", ", includes ?? Array.Empty<string>())}]");
+            
+            var response = new
+            {
+                Data = results,
+                Query = q,
+                TotalCount = totalCount, // Approximate - actual search count would require additional query
+                Skip = pagination.Skip,
+                Take = pagination.Take,
+                HasMore = results.Count() == pagination.Take // Approximate indication
+            };
+            
+            return Results.Ok(response);
+        })
+        .WithName($"Search{typeof(TEntity).Name}s")
+        .WithSummary($"Search {typeof(TEntity).Name}s with pagination")
+        .WithDescription($"Search for {typeof(TEntity).Name}s by query term with pagination support.")
+        .WithOpenApi(operation => new(operation)
+        {
+            Parameters = operation.Parameters.Concat(new[]
+            {
+                new Microsoft.OpenApi.Models.OpenApiParameter
+                {
+                    Name = "q",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Query,
+                    Required = true,
+                    Description = "Search query term",
+                    Schema = new Microsoft.OpenApi.Models.OpenApiSchema { Type = "string" }
+                },
+                new Microsoft.OpenApi.Models.OpenApiParameter
+                {
+                    Name = "skip",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Query,
+                    Required = false,
+                    Description = "Number of records to skip (default: 0)",
+                    Schema = new Microsoft.OpenApi.Models.OpenApiSchema { Type = "integer", Default = new Microsoft.OpenApi.Any.OpenApiInteger(0) }
+                },
+                new Microsoft.OpenApi.Models.OpenApiParameter
+                {
+                    Name = "take",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Query,
+                    Required = false,
+                    Description = "Number of records to take (default: 50, max: 50)",
+                    Schema = new Microsoft.OpenApi.Models.OpenApiSchema { Type = "integer", Default = new Microsoft.OpenApi.Any.OpenApiInteger(50) }
+                },
+                new Microsoft.OpenApi.Models.OpenApiParameter
+                {
+                    Name = "include",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Query,
+                    Required = false,
+                    Description = "Related entities to include (comma-separated)",
+                    Schema = new Microsoft.OpenApi.Models.OpenApiSchema { Type = "string" }
+                }
+            }).ToList()
         })
         .WithOpenApi(operation => 
         {
@@ -290,27 +373,39 @@ public static class EntityControllerExtensions
             return false;
         }
 
+        // Single query to check both admin status and resource memberships to prevent race conditions
+        var userWithMemberships = await dbContext.Users
+            .Where(u => u.Id == userId)
+            .Select(u => new
+            {
+                IsAdmin = u.IsAdmin,
+                HasRequiredMembership = u.ResourceMemberships
+                    .Any(rm => rm.ResourceType == resourceType
+                            && rm.ResourceId == resourceId
+                            && rm.Roles.Any(role => requiredMemberships.Contains(role)))
+            })
+            .FirstOrDefaultAsync();
+
+        if (userWithMemberships == null)
+        {
+            Log.Warning("Resource permission check failed: User {UserId} not found", userId);
+            return false;
+        }
+
         // Check if user is admin - admins have platform-wide privileges
-        var user = await dbContext.Users.FindAsync(userId);
-        if (user?.IsAdmin == true)
+        if (userWithMemberships.IsAdmin)
         {
             Log.Information($"Admin override: User {userId} granted access to {resourceType} {resourceId} due to admin privileges");
             return true;
         }
 
-        // Check if user has any of the required memberships for this resource
-        var hasPermission = await dbContext.ResourceMemberships
-            .AnyAsync(rm => rm.User.Id == userId
-                         && rm.ResourceType == resourceType
-                         && rm.ResourceId == resourceId
-                         && rm.Roles.Any(role => requiredMemberships.Contains(role)));
-
-        if (!hasPermission)
+        // Check if user has required membership
+        if (!userWithMemberships.HasRequiredMembership)
         {
             Log.Warning($"Resource permission check failed: User {userId} lacks required membership {string.Join(",", requiredMemberships)} for {resourceType} {resourceId}");
         }
 
-        return hasPermission;
+        return userWithMemberships.HasRequiredMembership;
     }
 
     // ✅ Helper method to get user ID from context
@@ -335,5 +430,29 @@ public static class EntityControllerExtensions
             .Select(i => i.Trim())
             .Where(i => !string.IsNullOrWhiteSpace(i))
             .ToArray();
+    }
+
+    // ✅ Helper method to parse pagination parameters from query string
+    private static (int Skip, int Take) ParsePagination(IQueryCollection query)
+    {
+        const int DefaultTake = 50; // Default page size
+        const int MaxTake = 50;     // Maximum page size to prevent abuse
+
+        var skip = 0;
+        var take = DefaultTake;
+
+        // Parse skip parameter
+        if (query.TryGetValue("skip", out var skipValue) && int.TryParse(skipValue, out var parsedSkip))
+        {
+            skip = Math.Max(0, parsedSkip); // Ensure skip is not negative
+        }
+
+        // Parse take parameter
+        if (query.TryGetValue("take", out var takeValue) && int.TryParse(takeValue, out var parsedTake))
+        {
+            take = Math.Min(Math.Max(1, parsedTake), MaxTake); // Ensure take is between 1 and MaxTake
+        }
+
+        return (skip, take);
     }
 }

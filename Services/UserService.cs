@@ -39,6 +39,26 @@ namespace Sonic.API.Services
             return Task.FromResult<IEnumerable<User>>(context.Users.ToList());
         }
 
+        public Task<IEnumerable<User>> GetAllUsersAsync(int skip, int take)
+        {
+            // Ensure take is within reasonable limits
+            take = Math.Min(take, 50);  // Max 50 users per request
+            take = Math.Max(take, 1);   // Min 1 user per request
+            
+            var users = context.Users
+                .OrderBy(u => u.Id) // Consistent ordering for pagination
+                .Skip(skip)
+                .Take(take)
+                .ToList();
+            
+            return Task.FromResult<IEnumerable<User>>(users);
+        }
+
+        public Task<int> GetUsersCountAsync()
+        {
+            return Task.FromResult(context.Users.Count());
+        }
+
         public Task<TokenResponseDto> UpdateUserAsync(UserUpdateDto user, int userId)
         {
             var existingUser = context.Users.FirstOrDefault(u => u.Id == userId);

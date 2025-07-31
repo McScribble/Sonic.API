@@ -7,6 +7,8 @@ namespace Sonic.API.Services
         Task<UserReadDto> GetUserByIdAsync(int userId);
         Task<User> GetUserByUsernameAsync(string username);
         Task<IEnumerable<User>> GetAllUsersAsync();
+        Task<IEnumerable<User>> GetAllUsersAsync(int skip, int take);
+        Task<int> GetUsersCountAsync();
         Task<TokenResponseDto> UpdateUserAsync(UserUpdateDto user, int userId);
         Task<bool> DeleteUserAsync(int Id);
 

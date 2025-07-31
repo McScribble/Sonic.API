@@ -29,6 +29,24 @@ public class EntityService<TDto, TCreateDto, TEntity> : IEntityService<TDto, TCr
         return entities.Select(entity => entity.Adapt<TDto>());
     }
 
+    // ✅ New paginated GetAllAsync method
+    public virtual async Task<IEnumerable<TDto>> GetAllAsync(string[]? includes, int skip, int take)
+    {
+        var query = _context.Set<TEntity>()
+            .ApplyIncludes(includes)
+            .Skip(skip)
+            .Take(take);
+        
+        var entities = await query.ToListAsync();
+        return entities.Select(entity => entity.Adapt<TDto>());
+    }
+
+    // ✅ New GetCountAsync method
+    public virtual async Task<int> GetCountAsync()
+    {
+        return await _context.Set<TEntity>().CountAsync();
+    }
+
     public virtual async Task<TDto?> GetByIdAsync(int id, string[]? includes = null)
     {
         var query = _context.Set<TEntity>().ApplyIncludes(includes);
@@ -107,6 +125,28 @@ public class EntityService<TDto, TCreateDto, TEntity> : IEntityService<TDto, TCr
         try
         {
             query = query.ApplySearch(new EntitySearch().ParseSearchTerms(search));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error applying search terms");
+            return Task.FromResult(Enumerable.Empty<TDto>());
+        }
+        return Task.FromResult(query.Adapt<IEnumerable<TDto>>());
+    }
+
+    // ✅ New paginated SearchAsync method
+    public Task<IEnumerable<TDto>> SearchAsync(string search, string[]? includes, int skip, int take)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return GetAllAsync(includes, skip, take);
+        }
+        var query = _context.Set<TEntity>().AsQueryable().ApplyIncludes(includes);
+        try
+        {
+            query = query.ApplySearch(new EntitySearch().ParseSearchTerms(search))
+                         .Skip(skip)
+                         .Take(take);
         }
         catch (Exception ex)
         {
