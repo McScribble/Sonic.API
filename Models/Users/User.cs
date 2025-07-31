@@ -17,4 +17,5 @@ public class User : GenericEntity
     public List<Event> AttendedEvents { get; set; } = new();
     public List<Event> OrganizedEvents { get; set; } = new();
     public List<Artist> Artists { get; set; } = new();
+    public List<ResourceMembership> ResourceMemberships { get; set; } = new();
 }

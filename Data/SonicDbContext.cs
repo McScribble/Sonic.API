@@ -15,6 +15,8 @@ public class SonicDbContext : DbContext
     public DbSet<PlaceAutocompleteResponse> PlaceAutocompleteResponses { get; set; } = null!;
     public DbSet<PlaceDetails> PlaceDetails { get; set; } = null!;
     public DbSet<Artist> Artists { get; set; } = null!;
+    public DbSet<ResourceMembership> ResourceMemberships { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -50,6 +52,14 @@ public class SonicDbContext : DbContext
                 v => JsonSerializer.Deserialize<Location>(v, (JsonSerializerOptions?)null) ?? null
             )
             .HasColumnType("jsonb");
+
+        // configure user resoure membership
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasMany(u => u.ResourceMemberships)
+                .WithOne(rm => rm.User)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // Configure external sources for artist
         modelBuilder.Entity<Artist>()
