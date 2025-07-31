@@ -163,6 +163,39 @@ public class SonicDbContext : DbContext
             )
             .HasColumnType("jsonb");
 
+        // Confiugre contact infos as json in entities
+        modelBuilder.Entity<Artist>()
+            .Property(a => a.Contacts)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<ContactInfo>>(v, (JsonSerializerOptions?)null) ?? new List<ContactInfo>()
+            )
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<Event>()
+            .Property(e => e.Contacts)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<ContactInfo>>(v, (JsonSerializerOptions?)null) ?? new List<ContactInfo>()
+            )
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<Venue>()
+            .Property(v => v.Contacts)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<ContactInfo>>(v, (JsonSerializerOptions?)null) ?? new List<ContactInfo>()
+            )
+            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<User>()
+            .Property(u => u.Contacts)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<ContactInfo>>(v, (JsonSerializerOptions?)null) ?? new List<ContactInfo>()
+            )
+            .HasColumnType("jsonb");
+
         // ✅ Fixed seed data with static values
         modelBuilder.Entity<Instrument>().HasData(
             new Instrument { Id = 1, Name = "Lead Guitar", Emoji = "🎸", CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc), Uuid = new Guid("11111111-1111-1111-1111-111111111111") },

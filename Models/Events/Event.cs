@@ -18,4 +18,5 @@ public class Event : GenericEntity
     public List<Artist> Lineup { get; set; } = new();
 
     public string InviteLink { get; set; } = string.Empty;
+    public List<ContactInfo> Contacts { get; set; } = new();
 }

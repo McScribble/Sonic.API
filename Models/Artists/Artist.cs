@@ -9,4 +9,5 @@ public class Artist : GenericEntity
     public List<Event> Events { get; set; } = new();
     public string? ImageUrl { get; set; }
     public List<User> Members { get; set; } = new();
+    public List<ContactInfo> Contacts { get; set; } = new();
 }

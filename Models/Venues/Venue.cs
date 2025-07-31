@@ -9,4 +9,5 @@ public class Venue : GenericEntity
     public List<ExternalSource> ExternalSources { get; set; } = new();
     public List<Event> Events { get; set; } = new();
     public string? Description { get; set; }
+    public List<ContactInfo> Contacts { get; set; } = new();
 }
