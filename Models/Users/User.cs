@@ -14,5 +14,7 @@ public class User : GenericEntity
     public List<string> Roles { get; set; } = new List<string> { Role.Player }; // Default role
     public string? RefreshToken { get; set; } // Optional refresh token for JWT
     public DateTime? RefreshTokenExpiry { get; set; } // Optional expiry for the refresh token
-    public List<Event> Events { get; set; } = new();
+    public List<Event> AttendedEvents { get; set; } = new();
+    public List<Event> OrganizedEvents { get; set; } = new();
+    public List<Artist> Artists { get; set; } = new();
 }

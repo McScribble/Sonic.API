@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Sonic.API.Data;
@@ -12,9 +13,11 @@ using Sonic.API.Data;
 namespace Sonic.API.Migrations
 {
     [DbContext(typeof(SonicDbContext))]
-    partial class SonicDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250731133840_CreateArtists")]
+    partial class CreateArtists
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

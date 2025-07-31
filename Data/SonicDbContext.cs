@@ -14,6 +14,7 @@ public class SonicDbContext : DbContext
     public DbSet<Instrument> Instruments { get; set; } = null!;
     public DbSet<PlaceAutocompleteResponse> PlaceAutocompleteResponses { get; set; } = null!;
     public DbSet<PlaceDetails> PlaceDetails { get; set; } = null!;
+    public DbSet<Artist> Artists { get; set; } = null!;
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -50,6 +51,28 @@ public class SonicDbContext : DbContext
             )
             .HasColumnType("jsonb");
 
+        // Configure external sources for artist
+        modelBuilder.Entity<Artist>()
+            .Property(a => a.ExternalSources)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<ExternalSource>>(v, (JsonSerializerOptions?)null) ?? new List<ExternalSource>()
+            )
+            .HasColumnType("jsonb");
+
+        // configure artist entity
+        modelBuilder.Entity<Artist>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+
+            entity.HasMany(a => a.Events)
+                .WithMany(e => e.Lineup)
+                .UsingEntity(j => j.ToTable("ArtistEvents"));
+
+            entity.HasMany(a => a.Members)
+                .WithMany(u => u.Artists);
+        });
+
         // ✅ Configure Event entity explicitly
         modelBuilder.Entity<Event>(entity =>
         {
@@ -68,6 +91,16 @@ public class SonicDbContext : DbContext
                     v => JsonSerializer.Deserialize<List<ExternalSource>>(v, (JsonSerializerOptions?)null) ?? new List<ExternalSource>()
                 )
                 .HasColumnType("jsonb");
+
+            // Configure the many-to-many relationship with Users
+            entity.HasMany(e => e.Attendees)
+                .WithMany(u => u.AttendedEvents)
+                .UsingEntity(j => j.ToTable("EventAttendees"));
+
+            // Configure the many-to-many relationship with Organizers
+            entity.HasMany(e => e.Organizers)
+                .WithMany(u => u.OrganizedEvents)
+                .UsingEntity(j => j.ToTable("EventOrganizers"));
         });
 
         modelBuilder.Entity<Venue>(entity =>
@@ -91,11 +124,6 @@ public class SonicDbContext : DbContext
                 )
                 .HasColumnType("jsonb");
         });
-
-        // ✅ Configure User-Event many-to-many relationship
-        modelBuilder.Entity<User>()
-            .HasMany(u => u.Events)
-            .WithMany(e => e.Attendees);
 
         // Configure other entities...
         modelBuilder.Entity<Song>()
