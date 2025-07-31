@@ -99,13 +99,13 @@ public static class UserControllerExtensions
                 return Results.NotFound($"User with ID {userId} not found.");
             }
 
-            // Check if roles are being changed
-            bool rolesChanged = !existingUser.Roles.OrderBy(r => r).SequenceEqual(user.Roles?.OrderBy(r => r) ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            // Check if admin status is being changed
+            bool adminStatusChanged = existingUser.IsAdmin != user.IsAdmin;
 
-            // If roles are being changed and the user is not an admin or manager, forbid
-            if (rolesChanged && !(isAdmin || isManager))
+            // If admin status is being changed and the user is not an admin, forbid
+            if (adminStatusChanged && !isAdmin)
             {
-                Log.Warning("Unauthorized role change attempt by {Username} for user {TargetUsername}", tokenUsername, user.Username);
+                Log.Warning("Unauthorized admin status change attempt by {Username} for user {TargetUsername}", tokenUsername, user.Username);
                 return Results.Forbid();
             }
 

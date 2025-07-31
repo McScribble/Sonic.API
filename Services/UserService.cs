@@ -21,7 +21,7 @@ namespace Sonic.API.Services
                 Id = user.Id,
                 Username = user.Username,
                 Email = user.Email,
-                Roles = user.Roles,
+                IsAdmin = user.IsAdmin,
                 FirstName = user.FirstName!,
                 LastName = user.LastName!,
                 CreatedAt = user.CreatedAt,
@@ -49,7 +49,7 @@ namespace Sonic.API.Services
 
             existingUser.Username = user.Username;
             existingUser.Email = user.Email;
-            existingUser.Roles = user.Roles;
+            existingUser.IsAdmin = user.IsAdmin;
             existingUser.FirstName = user.FirstName;
             existingUser.LastName = user.LastName;
             existingUser.UpdatedAt = DateTime.UtcNow;

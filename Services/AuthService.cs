@@ -79,7 +79,7 @@ namespace Sonic.API.Services
                 UpdatedAt = DateTime.UtcNow,
                 PasswordSalt = string.IsNullOrWhiteSpace(userDto.Password) ? null : passwordSalt,
                 PasswordHash = string.IsNullOrWhiteSpace(userDto.Password) ? null : SonicIdentity.HashPassword(userDto.Password, passwordSalt),
-                Roles = new List<string> { Role.Player }, // Default role
+                IsAdmin = false, // Default to non-admin
             };
 
             // Add user to database

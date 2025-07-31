@@ -65,7 +65,7 @@ public class SonicIdentity
             [ClaimTypes.Name] = user.Username,
             //[ClaimTypes.GroupSid] = user.Email,
             //[ClaimTypes.Sid] = "3c545f1c-cc1b-4cd5-985b-8666886f985b"
-            [ClaimTypes.Role] = user.Roles.ToArray(), // Assuming Roles is a List<string>
+            [ClaimTypes.Role] = user.IsAdmin ? "Admin" : "User", // Set role based on IsAdmin flag
             [ClaimTypes.NameIdentifier] = user.Id,
             [ClaimTypes.Email] = user.Email,
             ["Uuid"] = user.Uuid.ToString()

@@ -4,6 +4,7 @@ using Sonic.API.Data;
 using Sonic.API.Services;
 using Sonic.API.Mapping;
 using Sonic.API.Controllers;
+using Sonic.Controllers;
 using Scalar.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Serilog; // Add Serilog
@@ -201,10 +202,35 @@ app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapGoogleAuthEndpoints();
 app.MapSpotifyEndpoints();
-app.MapEntityEndpoints<VenueDto, VenueCreateDto, Venue>(Role.Player, Role.Manager);
-app.MapEntityEndpoints<EventDto, EventCreateDto, Event>(Role.Player, Role.Manager);
-app.MapEntityEndpoints<SongDto, SongCreateDto, Song>(Role.Player, Role.Player);
-app.MapEntityEndpoints<InstrumentDto, InstrumentCreateDto, Instrument>(Role.Player, Role.Manager);
+
+// Configure resource membership permissions
+var venuePermissions = new Dictionary<EndpointTypes, MembershipType[]>
+{
+    { EndpointTypes.Get, new[] { MembershipType.Viewer, MembershipType.Member, MembershipType.Manager, MembershipType.Owner } },
+    { EndpointTypes.Update, new[] { MembershipType.Manager, MembershipType.Owner } },
+    { EndpointTypes.Delete, new[] { MembershipType.Owner } }
+};
+
+var eventPermissions = new Dictionary<EndpointTypes, MembershipType[]>
+{
+    { EndpointTypes.Get, new[] { MembershipType.Viewer, MembershipType.Member, MembershipType.Organizer, MembershipType.Owner } },
+    { EndpointTypes.Update, new[] { MembershipType.Organizer, MembershipType.Owner } },
+    { EndpointTypes.Delete, new[] { MembershipType.Owner } }
+};
+
+var artistPermissions = new Dictionary<EndpointTypes, MembershipType[]>
+{
+    { EndpointTypes.Get, new[] { MembershipType.Viewer, MembershipType.Member, MembershipType.Manager, MembershipType.Owner } },
+    { EndpointTypes.Update, new[] { MembershipType.Member, MembershipType.Manager, MembershipType.Owner } },
+    { EndpointTypes.Delete, new[] { MembershipType.Owner } }
+};
+
+// Map entity endpoints with resource membership checking
+app.MapEntityEndpoints<VenueDto, VenueCreateDto, Venue>(ResourceType.Venue, venuePermissions);
+app.MapEntityEndpoints<EventDto, EventCreateDto, Event>(ResourceType.Event, eventPermissions);
+app.MapEntityEndpoints<ArtistDto, ArtistCreateDto, Artist>(ResourceType.Artist, artistPermissions);
+app.MapEntityEndpoints<SongDto, SongCreateDto, Song>(ResourceType.Event); // Songs don't have specific resource type yet
+app.MapEntityEndpoints<InstrumentDto, InstrumentCreateDto, Instrument>(ResourceType.Event); // Instruments don't have specific resource type yet
 app.MapMapsEndpoints();
 
 // Configure the HTTP request pipeline
