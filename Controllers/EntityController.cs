@@ -5,6 +5,7 @@ using Serilog;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Sonic.API.Data;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Sonic.API.Controllers;
 public static class EntityControllerExtensions
@@ -17,8 +18,8 @@ public static class EntityControllerExtensions
     {
         // ✅ Updated GetById endpoint with includes support and resource membership checking
         app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s/{entityId:int}", async (
-            IEntityService<TDto, TCreateDto, TEntity> entityService, 
-            SonicDbContext dbContext,
+            [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
+            [FromServices] SonicDbContext dbContext,
             int entityId, 
             HttpContext context) =>
         {
@@ -68,8 +69,8 @@ public static class EntityControllerExtensions
 
         // ✅ Updated GetAll endpoint with includes support, admin filtering, and pagination
         app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s", async (
-            IEntityService<TDto, TCreateDto, TEntity> entityService, 
-            SonicDbContext dbContext,
+            [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
+            [FromServices] SonicDbContext dbContext,
             HttpContext context) =>
         {
             var includes = ParseIncludes(context.Request.Query["include"]);
@@ -137,9 +138,9 @@ public static class EntityControllerExtensions
 
         // Register endpoint for updating an entity with resource membership checking
         app.MapPut("/api/" + typeof(TEntity).Name.ToLower() + "s", async (
-            IEntityService<TDto, TCreateDto, TEntity> entityService, 
-            SonicDbContext dbContext,
-            TDto entityUpdate, 
+            [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
+            [FromServices] SonicDbContext dbContext,
+            [FromBody] TDto entityUpdate, 
             HttpContext httpContext) =>
         {
             // Check resource membership if configured
@@ -174,8 +175,8 @@ public static class EntityControllerExtensions
 
         // Register endpoint for deleting an entity with resource membership checking
         app.MapDelete("/api/" + typeof(TEntity).Name.ToLower() + "s/{entityId:int}", async (
-            IEntityService<TDto, TCreateDto, TEntity> entityService, 
-            SonicDbContext dbContext,
+            [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
+            [FromServices] SonicDbContext dbContext,
             int entityId,
             HttpContext context) =>
         {
@@ -212,9 +213,9 @@ public static class EntityControllerExtensions
         .WithOpenApi();
 
         app.MapPost("/api/" + typeof(TEntity).Name.ToLower() + "s", async (
-            IEntityService<TDto, TCreateDto, TEntity> entityService, 
-            SonicDbContext dbContext,
-            TCreateDto entityCreateDto,
+            [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
+            [FromServices] SonicDbContext dbContext,
+            [FromBody] TCreateDto entityCreateDto,
             HttpContext context) =>
         {
             var createdEntity = await entityService.CreateAsync(entityCreateDto);
@@ -266,7 +267,7 @@ public static class EntityControllerExtensions
         .WithOpenApi();
 
         // Register endpoint for searching entities with pagination support
-        app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s/search", async (IEntityService<TDto, TCreateDto, TEntity> entityService, string q, HttpContext context) =>
+        app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s/search", async ([FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, string q, HttpContext context) =>
         {
             if (string.IsNullOrWhiteSpace(q) || !EntitySearch.IsValidSearchTerm(q))
             {
