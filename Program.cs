@@ -119,6 +119,9 @@ builder.Services.AddScoped<IEntityService<VenueDto, VenueCreateDto, Venue>>(prov
 builder.Services.AddScoped<IEntityService<EventDto, EventCreateDto, Event>>(provider =>
     new EntityService<EventDto, EventCreateDto, Event>(provider.GetRequiredService<SonicDbContext>()));
 
+builder.Services.AddScoped<IEntityService<ArtistDto, ArtistCreateDto, Artist>>(provider =>
+    new EntityService<ArtistDto, ArtistCreateDto, Artist>(provider.GetRequiredService<SonicDbContext>()));
+
 // Replace the generic registration for Song
 // builder.Services.AddScoped<IGenericEntityService<SongDto, SongCreateDto>, GenericEntityService<Song, SongDto, SongCreateDto, SongUpdateDto>>();
 
