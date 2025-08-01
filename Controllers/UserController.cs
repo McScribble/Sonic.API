@@ -40,6 +40,8 @@ public static class UserControllerExtensions
         })
         .RequireAuthorization() // Require "Manager" role
         .WithName("GetUserById")
+        .WithSummary("Get user by ID")
+        .WithDescription("Retrieves a specific user by their unique identifier. Requires authentication.")
         .Produces<UserReadDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status500InternalServerError);
@@ -160,6 +162,8 @@ public static class UserControllerExtensions
         })
         .RequireAuthorization() // Require authentication to prevent enumeration
         .WithName("CheckUsernameTaken")
+        .WithSummary("Check if username is available")
+        .WithDescription("Checks if a username is already taken. Requires authentication to prevent username enumeration attacks.")
         .Produces<bool>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status403Forbidden)
         .Produces(StatusCodes.Status500InternalServerError);
@@ -228,6 +232,8 @@ public static class UserControllerExtensions
         })
         .RequireAuthorization() // Require authenticated user
         .WithName("UpdateUser")
+        .WithSummary("Update user profile")
+        .WithDescription("Updates a user's profile information. Users can update their own profile, or admins can update any user. Only admins can change admin status.")
         .Produces<TokenResponseDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status403Forbidden)
         .Produces(StatusCodes.Status404NotFound)
