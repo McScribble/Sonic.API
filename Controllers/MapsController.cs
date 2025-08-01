@@ -33,6 +33,8 @@ public static class MapsControllerExtensions
             }
         })
         .WithName("GetPlaceAutocomplete")
+        .WithSummary("Get place autocomplete suggestions")
+        .WithDescription("Provides autocomplete suggestions for places based on user input. Useful for location search fields and venue selection. Requires authentication.")
         .RequireAuthorization()
         .Produces<PlaceAutocompleteResponse>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest)
@@ -64,6 +66,8 @@ public static class MapsControllerExtensions
             }
         })
         .WithName("GetPlaceDetails")
+        .WithSummary("Get detailed place information")
+        .WithDescription("Retrieves comprehensive details for a specific place using its place ID. Returns address, coordinates, and other location metadata. Requires authentication.")
         .RequireAuthorization()
         .Produces<PlaceDetails>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest)

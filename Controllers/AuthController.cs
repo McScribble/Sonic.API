@@ -28,6 +28,8 @@ public static class AuthControllerExtensions
             }
         })
         .WithName("RegisterUser")
+        .WithSummary("Register new user account")
+        .WithDescription("Creates a new user account with email verification. Returns user details and authentication token upon successful registration.")
         .Produces<UserCreatedDto>(StatusCodes.Status201Created)
         .Produces(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status500InternalServerError)
@@ -61,6 +63,8 @@ public static class AuthControllerExtensions
             }
         })
         .WithName("LoginUser")
+        .WithSummary("Authenticate user login")
+        .WithDescription("Authenticates a user with email/username and password. Returns JWT access token and refresh token for authenticated sessions.")
         .Produces<TokenResponseDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status401Unauthorized)
         .Produces(StatusCodes.Status400BadRequest)
@@ -88,6 +92,8 @@ public static class AuthControllerExtensions
             }
         })
         .WithName("RefreshToken")
+        .WithSummary("Refresh authentication token")
+        .WithDescription("Refreshes an expired JWT access token using a valid refresh token. Extends user session without requiring re-authentication.")
         .Produces<TokenResponseDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status401Unauthorized)
         .Produces(StatusCodes.Status500InternalServerError)

@@ -25,6 +25,8 @@ public static class GoogleAuthControllerExtensions
             return Results.Challenge(properties, new[] { "Google" });
         })
         .WithName("GoogleLogin")
+        .WithSummary("Initiate Google OAuth login")
+        .WithDescription("Redirects user to Google OAuth consent screen for authentication. Requires a returnUrl parameter to redirect back after authentication.")
         .Produces(StatusCodes.Status302Found);
 
         app.MapGet("/api/account/login/google/callback", async ([FromQuery] string returnUrl, HttpContext context, IAuthService authService) =>
@@ -64,6 +66,8 @@ public static class GoogleAuthControllerExtensions
             return Results.Redirect(returnUrl ?? "/");
         })
         .WithName("GoogleLoginCallback")
+        .WithSummary("Handle Google OAuth callback")
+        .WithDescription("Processes the OAuth callback from Google, creates or logs in the user, sets authentication cookies, and redirects to the specified return URL.")
         .Produces(StatusCodes.Status302Found)
         .Produces(StatusCodes.Status401Unauthorized)
         .WithOpenApi();

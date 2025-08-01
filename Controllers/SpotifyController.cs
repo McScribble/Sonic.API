@@ -24,6 +24,8 @@ public static class SpotifyControllerExtensions
             }
         })
         .WithName("RefreshSpotifyToken")
+        .WithSummary("Refresh Spotify access token")
+        .WithDescription("Obtains a fresh Spotify access token for making authenticated requests to the Spotify Web API. Required for searching tracks and accessing Spotify data. Requires authentication.")
         .RequireAuthorization()
         .Produces<SpotifyTokenResponseDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status500InternalServerError)

@@ -51,6 +51,8 @@ public static class EntityControllerExtensions
         })
         .RequireAuthorization() // Require authentication but no specific roles
         .WithName($"Get{typeof(TEntity).Name}ById")
+        .WithSummary($"Get {typeof(TEntity).Name} by ID")
+        .WithDescription($"Retrieves a specific {typeof(TEntity).Name} by its unique identifier. Supports including related entities via the 'include' query parameter. Access controlled by resource membership permissions.")
         .Produces<TDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status500InternalServerError)
@@ -121,6 +123,8 @@ public static class EntityControllerExtensions
         })
         .RequireAuthorization() // Require authentication but no specific roles
         .WithName($"GetAll{typeof(TEntity).Name}s")
+        .WithSummary($"Get all {typeof(TEntity).Name}s with pagination")
+        .WithDescription($"Retrieves a paginated list of {typeof(TEntity).Name}s. Supports filtering by related entities and pagination. Admins see all records, regular users see only records they have access to based on resource membership.")
         .Produces<IEnumerable<TDto>>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status500InternalServerError)
         .WithOpenApi(operation => 
@@ -168,6 +172,8 @@ public static class EntityControllerExtensions
         })
         .RequireAuthorization() // Require authentication but no specific roles
         .WithName($"Update{typeof(TEntity).Name}")
+        .WithSummary($"Update {typeof(TEntity).Name}")
+        .WithDescription($"Updates an existing {typeof(TEntity).Name} with new information. Access controlled by resource membership permissions - only users with appropriate membership can update.")
         .Produces<TDto>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status403Forbidden)
         .Produces(StatusCodes.Status404NotFound)
@@ -207,6 +213,8 @@ public static class EntityControllerExtensions
         })
         .RequireAuthorization() // Require authentication but no specific roles
         .WithName($"Delete{typeof(TEntity).Name}")
+        .WithSummary($"Delete {typeof(TEntity).Name}")
+        .WithDescription($"Permanently deletes a {typeof(TEntity).Name} by its ID. Access controlled by resource membership permissions - only users with appropriate membership can delete.")
         .Produces(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status404NotFound)
         .Produces(StatusCodes.Status500InternalServerError)
@@ -261,6 +269,8 @@ public static class EntityControllerExtensions
         })
         .RequireAuthorization() // Require authentication but no specific roles
         .WithName($"Create{typeof(TEntity).Name}")
+        .WithSummary($"Create new {typeof(TEntity).Name}")
+        .WithDescription($"Creates a new {typeof(TEntity).Name} with the provided information. The creating user automatically becomes the owner with full permissions.")
         .Produces<TDto>(StatusCodes.Status201Created)
         .Produces(StatusCodes.Status400BadRequest)
         .Produces(StatusCodes.Status500InternalServerError)
