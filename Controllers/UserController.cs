@@ -7,16 +7,6 @@ using System.Security.Claims;
 namespace Sonic.API.Controllers;
 public static class UserControllerExtensions
 {
-    // Helper method to get user ID from context
-    private static int? GetUserIdFromContext(HttpContext context)
-    {
-        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-        {
-            return null;
-        }
-        return userId;
-    }
     public static void MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/users/{userId:int}", async (IUserService userService, int userId) =>
@@ -47,12 +37,15 @@ public static class UserControllerExtensions
         .Produces(StatusCodes.Status500InternalServerError);
 
         // Register endpoint for getting all users - Admin only for security with pagination
-        app.MapGet("/api/users", async (IUserService userService, HttpContext context) =>
+        app.MapGet("/api/users", async (
+            IUserService userService, 
+            IResourcePermissionService permissionService,
+            HttpContext context) =>
         {
             try
             {
                 // Check if user is admin
-                var userId = GetUserIdFromContext(context);
+                var userId = permissionService.GetUserIdFromContext(context);
                 if (!userId.HasValue)
                 {
                     Log.Warning("Unauthorized access attempt to get all users - no user ID in context");
@@ -67,33 +60,22 @@ public static class UserControllerExtensions
                 }
 
                 // Parse pagination parameters
-                var skip = 0;
-                var take = 50; // Default page size
-                
-                if (int.TryParse(context.Request.Query["skip"], out var skipValue))
-                {
-                    skip = Math.Max(0, skipValue);
-                }
-                
-                if (int.TryParse(context.Request.Query["take"], out var takeValue))
-                {
-                    take = Math.Min(Math.Max(1, takeValue), 50); // Min 1, max 50
-                }
+                var pagination = permissionService.ParsePagination(context.Request.Query);
 
-                var users = await userService.GetAllUsersAsync(skip, take);
+                var users = await userService.GetAllUsersAsync(pagination.Skip, pagination.Take);
                 var totalCount = await userService.GetUsersCountAsync();
                 
                 var response = new
                 {
                     Data = users,
                     TotalCount = totalCount,
-                    Skip = skip,
-                    Take = take,
-                    HasMore = skip + users.Count() < totalCount
+                    Skip = pagination.Skip,
+                    Take = pagination.Take,
+                    HasMore = pagination.Skip + users.Count() < totalCount
                 };
                 
                 Log.Information("Retrieved users successfully by admin {UserId}: {Count} of {Total} total (skip: {Skip}, take: {Take})", 
-                    userId, users.Count(), totalCount, skip, take);
+                    userId, users.Count(), totalCount, pagination.Skip, pagination.Take);
                 return Results.Ok(response);
             }
             catch (Exception ex)
@@ -135,12 +117,16 @@ public static class UserControllerExtensions
         .WithOpenApi();
 
         //register endpoint for checking if username is taken - requires authentication to prevent enumeration
-        app.MapGet("/api/users/username/{username}", (IUserService userService, string username, HttpContext context) =>
+        app.MapGet("/api/users/username/{username}", (
+            IUserService userService, 
+            IResourcePermissionService permissionService,
+            string username, 
+            HttpContext context) =>
         {
             try
             {
                 // Ensure user is authenticated to prevent username enumeration attacks
-                var userId = GetUserIdFromContext(context);
+                var userId = permissionService.GetUserIdFromContext(context);
                 if (!userId.HasValue)
                 {
                     Log.Warning("Unauthenticated username check attempt for username: {Username}", username);
@@ -169,12 +155,17 @@ public static class UserControllerExtensions
         .Produces(StatusCodes.Status500InternalServerError);
 
         // Register endpoint for updating a user
-        app.MapPut("/api/users/{userId:int}", async (IUserService userService, UserUpdateDto user, int userId, HttpContext httpContext) =>
+        app.MapPut("/api/users/{userId:int}", async (
+            IUserService userService, 
+            IResourcePermissionService permissionService,
+            UserUpdateDto user, 
+            int userId, 
+            HttpContext httpContext) =>
         {
             try
             {
                 // Get current user info from context
-                var currentUserId = GetUserIdFromContext(httpContext);
+                var currentUserId = permissionService.GetUserIdFromContext(httpContext);
                 if (!currentUserId.HasValue)
                 {
                     Log.Warning("Unauthorized update attempt - no user ID in context");

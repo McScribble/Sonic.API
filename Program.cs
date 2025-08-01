@@ -109,6 +109,8 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ISpotifyService, SpotifyService>();
 // Register IMapsService with MapsService implementation
 builder.Services.AddScoped<IMapsService, MapsService>();
+// Register IResourcePermissionService with ResourcePermissionService implementation
+builder.Services.AddScoped<IResourcePermissionService, ResourcePermissionService>();
 
 // Register EntityService with specific type mappings
 builder.Services.AddScoped<IEntityService<VenueDto, VenueCreateDto, Venue>>(provider =>

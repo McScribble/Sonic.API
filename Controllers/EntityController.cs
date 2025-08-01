@@ -19,18 +19,18 @@ public static class EntityControllerExtensions
         // ✅ Updated GetById endpoint with includes support and resource membership checking
         app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s/{entityId:int}", async (
             [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
-            [FromServices] SonicDbContext dbContext,
+            [FromServices] IResourcePermissionService permissionService,
             int entityId, 
             HttpContext context) =>
         {
             var entityType = typeof(TEntity);
-            var includes = ParseIncludes(context.Request.Query["include"]);
+            var includes = permissionService.ParseIncludes(context.Request.Query["include"]);
 
             // Check resource membership if configured
             if (membershipConfig?.ContainsKey(EndpointTypes.Get) == true)
             {
                 var requiredMemberships = membershipConfig[EndpointTypes.Get];
-                var hasPermission = await CheckResourcePermissionAsync(context, dbContext, resourceType, entityId, requiredMemberships);
+                var hasPermission = await permissionService.CheckResourcePermissionAsync(context, resourceType, entityId, requiredMemberships);
                 
                 if (!hasPermission)
                 {
@@ -73,15 +73,16 @@ public static class EntityControllerExtensions
         app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s", async (
             [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
             [FromServices] SonicDbContext dbContext,
+            [FromServices] IResourcePermissionService permissionService,
             HttpContext context) =>
         {
-            var includes = ParseIncludes(context.Request.Query["include"]);
+            var includes = permissionService.ParseIncludes(context.Request.Query["include"]);
             
             // Parse pagination parameters
-            var pagination = ParsePagination(context.Request.Query);
+            var pagination = permissionService.ParsePagination(context.Request.Query);
             
             // Check if user is admin - admins can see all resources
-            var userId = GetUserIdFromContext(context);
+            var userId = permissionService.GetUserIdFromContext(context);
             if (userId.HasValue)
             {
                 var user = await dbContext.Users.FindAsync(userId.Value);
@@ -144,6 +145,7 @@ public static class EntityControllerExtensions
         app.MapPut("/api/" + typeof(TEntity).Name.ToLower() + "s", async (
             [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
             [FromServices] SonicDbContext dbContext,
+            [FromServices] IResourcePermissionService permissionService,
             [FromBody] TDto entityUpdate, 
             HttpContext httpContext) =>
         {
@@ -151,11 +153,16 @@ public static class EntityControllerExtensions
             if (membershipConfig?.ContainsKey(EndpointTypes.Update) == true)
             {
                 var requiredMemberships = membershipConfig[EndpointTypes.Update];
-                var hasPermission = await CheckResourcePermissionAsync(httpContext, dbContext, resourceType, entityUpdate.Id, requiredMemberships);
+                var hasPermission = await permissionService.CheckResourcePermissionAsync(
+                    httpContext, 
+                    resourceType, 
+                    entityUpdate.Id,
+                    requiredMemberships
+                );
                 
                 if (!hasPermission)
                 {
-                    Log.Warning($"Update access denied: User lacks required membership for {typeof(TEntity).Name} {entityUpdate.Id}");
+                    Log.Warning($"User denied UPDATE permission for {typeof(TEntity).Name} {entityUpdate.Id}");
                     return Results.Forbid();
                 }
             }
@@ -183,6 +190,7 @@ public static class EntityControllerExtensions
         app.MapDelete("/api/" + typeof(TEntity).Name.ToLower() + "s/{entityId:int}", async (
             [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
             [FromServices] SonicDbContext dbContext,
+            [FromServices] IResourcePermissionService permissionService,
             int entityId,
             HttpContext context) =>
         {
@@ -190,7 +198,7 @@ public static class EntityControllerExtensions
             if (membershipConfig?.ContainsKey(EndpointTypes.Delete) == true)
             {
                 var requiredMemberships = membershipConfig[EndpointTypes.Delete];
-                var hasPermission = await CheckResourcePermissionAsync(context, dbContext, resourceType, entityId, requiredMemberships);
+                var hasPermission = await permissionService.CheckResourcePermissionAsync(context, resourceType, entityId, requiredMemberships);
                 
                 if (!hasPermission)
                 {
@@ -223,6 +231,7 @@ public static class EntityControllerExtensions
         app.MapPost("/api/" + typeof(TEntity).Name.ToLower() + "s", async (
             [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
             [FromServices] SonicDbContext dbContext,
+            [FromServices] IResourcePermissionService permissionService,
             [FromBody] TCreateDto entityCreateDto,
             HttpContext context) =>
         {
@@ -238,7 +247,7 @@ public static class EntityControllerExtensions
             // but we still create them for consistency and potential future role changes
             if (membershipConfig != null)
             {
-                var userId = GetUserIdFromContext(context);
+                var userId = permissionService.GetUserIdFromContext(context);
                 if (userId.HasValue)
                 {
                     var user = await dbContext.Users.FindAsync(userId.Value);
@@ -277,7 +286,11 @@ public static class EntityControllerExtensions
         .WithOpenApi();
 
         // Register endpoint for searching entities with pagination support
-        app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s/search", async ([FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, string q, HttpContext context) =>
+        app.MapGet("/api/" + typeof(TEntity).Name.ToLower() + "s/search", async (
+            [FromServices] IEntityService<TDto, TCreateDto, TEntity> entityService, 
+            [FromServices] IResourcePermissionService permissionService,
+            string q, 
+            HttpContext context) =>
         {
             if (string.IsNullOrWhiteSpace(q) || !EntitySearch.IsValidSearchTerm(q))
             {
@@ -285,8 +298,8 @@ public static class EntityControllerExtensions
                 return Results.BadRequest("Search term is invalid. Please provide a valid search term.");
             }
 
-            var includes = ParseIncludes(context.Request.Query["include"]);
-            var pagination = ParsePagination(context.Request.Query);
+            var includes = permissionService.ParseIncludes(context.Request.Query["include"]);
+            var pagination = permissionService.ParsePagination(context.Request.Query);
             
             var results = await entityService.SearchAsync(q, includes, pagination.Skip, pagination.Take);
             var totalCount = await entityService.GetCountAsync(); // Note: This is approximate for search results
@@ -366,104 +379,5 @@ public static class EntityControllerExtensions
             });
             return operation;
         });
-    }
-
-    // ✅ Helper method to check resource membership permissions
-    private static async Task<bool> CheckResourcePermissionAsync(
-        HttpContext context,
-        SonicDbContext dbContext,
-        ResourceType resourceType,
-        int resourceId,
-        MembershipType[] requiredMemberships)
-    {
-        // Get user ID from claims
-        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-        {
-            Log.Warning("Resource permission check failed: No valid user ID found in claims");
-            return false;
-        }
-
-        // Single query to check both admin status and resource memberships to prevent race conditions
-        var userWithMemberships = await dbContext.Users
-            .Where(u => u.Id == userId)
-            .Select(u => new
-            {
-                IsAdmin = u.IsAdmin,
-                HasRequiredMembership = u.ResourceMemberships
-                    .Any(rm => rm.ResourceType == resourceType
-                            && rm.ResourceId == resourceId
-                            && rm.Roles.Any(role => requiredMemberships.Contains(role)))
-            })
-            .FirstOrDefaultAsync();
-
-        if (userWithMemberships == null)
-        {
-            Log.Warning("Resource permission check failed: User {UserId} not found", userId);
-            return false;
-        }
-
-        // Check if user is admin - admins have platform-wide privileges
-        if (userWithMemberships.IsAdmin)
-        {
-            Log.Information($"Admin override: User {userId} granted access to {resourceType} {resourceId} due to admin privileges");
-            return true;
-        }
-
-        // Check if user has required membership
-        if (!userWithMemberships.HasRequiredMembership)
-        {
-            Log.Warning($"Resource permission check failed: User {userId} lacks required membership {string.Join(",", requiredMemberships)} for {resourceType} {resourceId}");
-        }
-
-        return userWithMemberships.HasRequiredMembership;
-    }
-
-    // ✅ Helper method to get user ID from context
-    private static int? GetUserIdFromContext(HttpContext context)
-    {
-        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
-        {
-            return null;
-        }
-        return userId;
-    }
-
-    // ✅ Helper method to parse includes from query string
-    private static string[]? ParseIncludes(string? include)
-    {
-        if (string.IsNullOrWhiteSpace(include))
-            return null;
-
-        return include
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(i => i.Trim())
-            .Where(i => !string.IsNullOrWhiteSpace(i))
-            .ToArray();
-    }
-
-    // ✅ Helper method to parse pagination parameters from query string
-    private static (int Skip, int Take) ParsePagination(IQueryCollection query)
-    {
-        const int DefaultTake = 50; // Default page size
-        const int MaxTake = 50;     // Maximum page size to prevent abuse
-
-        var skip = 0;
-        var take = DefaultTake;
-
-        // Parse skip parameter
-        if (query.TryGetValue("skip", out var skipValue) && int.TryParse(skipValue, out var parsedSkip))
-        {
-            skip = Math.Max(0, parsedSkip); // Ensure skip is not negative
-        }
-
-        // Parse take parameter
-        if (query.TryGetValue("take", out var takeValue) && int.TryParse(takeValue, out var parsedTake))
-        {
-            take = Math.Min(Math.Max(1, parsedTake), MaxTake); // Ensure take is between 1 and MaxTake
-        }
-
-        return (skip, take);
     }
 }
