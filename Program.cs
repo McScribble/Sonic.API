@@ -111,6 +111,8 @@ builder.Services.AddScoped<ISpotifyService, SpotifyService>();
 builder.Services.AddScoped<IMapsService, MapsService>();
 // Register IResourcePermissionService with ResourcePermissionService implementation
 builder.Services.AddScoped<IResourcePermissionService, ResourcePermissionService>();
+// Register DynamicOwnershipResolver for advanced cascading ownership
+builder.Services.AddScoped<DynamicOwnershipResolver>();
 
 // Register EntityService with specific type mappings
 builder.Services.AddScoped<IEntityService<VenueDto, VenueCreateDto, Venue>>(provider =>

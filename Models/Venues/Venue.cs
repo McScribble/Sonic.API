@@ -1,5 +1,10 @@
+using Sonic.Models.Base;
+
 namespace Sonic.Models;
 
+// Venue grants ownership to Events (venue owners can manage events at their venue)
+[CascadeOwnershipTo("Events", typeof(Event))]
+[DirectOwnership(ResourceType.Venue)] // Venues have direct ownership
 public class Venue : GenericEntity
 {
     public Address? Address { get; set; }

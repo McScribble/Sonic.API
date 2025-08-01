@@ -14,6 +14,16 @@ namespace Sonic.API.Services
             MembershipType[] requiredMemberships);
 
         /// <summary>
+        /// Checks if the current user has the required resource membership permissions
+        /// with cascading ownership support
+        /// </summary>
+        Task<bool> CheckCascadingResourcePermissionAsync<TEntity>(
+            HttpContext context,
+            int resourceId,
+            MembershipType[] requiredMemberships)
+            where TEntity : class;
+
+        /// <summary>
         /// Gets the user ID from the HTTP context claims
         /// </summary>
         int? GetUserIdFromContext(HttpContext context);

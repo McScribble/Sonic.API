@@ -1,7 +1,9 @@
 using Sonic.Models;
+using Sonic.Models.Base;
 using Sonic.API.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Reflection;
 using Serilog;
 
 namespace Sonic.API.Services
@@ -65,6 +67,172 @@ namespace Sonic.API.Services
             }
 
             return userWithMemberships.HasRequiredMembership;
+        }
+
+        /// <summary>
+        /// Checks if the current user has the required resource membership permissions
+        /// with cascading ownership support
+        /// </summary>
+        public async Task<bool> CheckCascadingResourcePermissionAsync<TEntity>(
+            HttpContext context,
+            int resourceId,
+            MembershipType[] requiredMemberships)
+            where TEntity : class
+        {
+            // Get user ID from claims
+            var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                Log.Warning("Cascading resource permission check failed: No valid user ID found in claims");
+                return false;
+            }
+
+            // Check if user is admin first - admins have platform-wide privileges
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (user?.IsAdmin == true)
+            {
+                Log.Information($"Admin override: User {userId} granted access to {typeof(TEntity).Name} {resourceId} due to admin privileges");
+                return true;
+            }
+
+            // Check direct ownership first
+            var hasDirectOwnership = await CheckDirectOwnership<TEntity>(userId, resourceId, requiredMemberships);
+            if (hasDirectOwnership)
+            {
+                Log.Information($"Direct ownership: User {userId} has direct access to {typeof(TEntity).Name} {resourceId}");
+                return true;
+            }
+
+            // Check cascading ownership
+            var hasCascadingOwnership = await CheckCascadingOwnership<TEntity>(userId, resourceId, requiredMemberships);
+            if (hasCascadingOwnership)
+            {
+                Log.Information($"Cascading ownership: User {userId} has cascading access to {typeof(TEntity).Name} {resourceId}");
+                return true;
+            }
+
+            Log.Warning($"Access denied: User {userId} lacks required permissions for {typeof(TEntity).Name} {resourceId}");
+            return false;
+        }
+
+        /// <summary>
+        /// Checks direct ownership through ResourceMembership records
+        /// </summary>
+        private async Task<bool> CheckDirectOwnership<TEntity>(int userId, int resourceId, MembershipType[] requiredMemberships)
+            where TEntity : class
+        {
+            // Get the DirectOwnership attribute to determine the ResourceType
+            var directOwnershipAttr = typeof(TEntity).GetCustomAttribute<DirectOwnershipAttribute>();
+            if (directOwnershipAttr == null)
+            {
+                return false; // Entity doesn't support direct ownership
+            }
+
+            var hasDirectMembership = await _dbContext.ResourceMemberships
+                .Where(rm => rm.User.Id == userId
+                        && rm.ResourceType == directOwnershipAttr.ResourceType
+                        && rm.ResourceId == resourceId
+                        && rm.Roles.Any(role => requiredMemberships.Contains(role)))
+                .AnyAsync();
+
+            return hasDirectMembership;
+        }
+
+        /// <summary>
+        /// Checks cascading ownership through related entities
+        /// </summary>
+        private async Task<bool> CheckCascadingOwnership<TEntity>(int userId, int resourceId, MembershipType[] requiredMemberships)
+            where TEntity : class
+        {
+            // Get all CascadeOwnershipFrom attributes
+            var cascadeAttributes = typeof(TEntity).GetCustomAttributes<CascadeOwnershipFromAttribute>()
+                .OrderBy(attr => attr.Priority)
+                .ToList();
+
+            if (!cascadeAttributes.Any())
+            {
+                return false; // No cascading ownership configured
+            }
+
+            foreach (var cascadeAttr in cascadeAttributes)
+            {
+                var hasOwnership = await CheckOwnershipThroughRelation<TEntity>(
+                    userId, resourceId, cascadeAttr, requiredMemberships);
+                
+                if (hasOwnership)
+                {
+                    return true; // Found ownership through this relation
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks ownership through a specific relationship
+        /// </summary>
+        private async Task<bool> CheckOwnershipThroughRelation<TEntity>(
+            int userId, 
+            int resourceId, 
+            CascadeOwnershipFromAttribute cascadeAttr, 
+            MembershipType[] requiredMemberships)
+            where TEntity : class
+        {
+            try
+            {
+                // This is a simplified example - in practice, you'd need to build dynamic queries
+                // based on the relationship type and entity structure
+                
+                if (typeof(TEntity) == typeof(Event) && cascadeAttr.OwningEntityType == typeof(Venue))
+                {
+                    return await CheckEventVenueOwnership(userId, resourceId, requiredMemberships);
+                }
+                
+                if (typeof(TEntity) == typeof(Event) && cascadeAttr.OwningEntityType == typeof(User))
+                {
+                    return await CheckEventOrganizerOwnership(userId, resourceId, requiredMemberships);
+                }
+
+                // Add more relationship checks as needed
+                Log.Warning($"Unhandled cascading ownership relationship: {typeof(TEntity).Name} -> {cascadeAttr.OwningEntityType.Name}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error checking cascading ownership for {typeof(TEntity).Name} {resourceId}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks if user owns the venue that hosts the event
+        /// </summary>
+        private async Task<bool> CheckEventVenueOwnership(int userId, int eventId, MembershipType[] requiredMemberships)
+        {
+            var venueId = await _dbContext.Set<Event>()
+                .Where(e => e.Id == eventId && e.Venue != null)
+                .Select(e => e.Venue!.Id)
+                .FirstOrDefaultAsync();
+
+            if (venueId == 0) return false;
+
+            return await _dbContext.ResourceMemberships
+                .Where(rm => rm.User.Id == userId
+                        && rm.ResourceType == ResourceType.Venue
+                        && rm.ResourceId == venueId
+                        && rm.Roles.Any(role => requiredMemberships.Contains(role)))
+                .AnyAsync();
+        }
+
+        /// <summary>
+        /// Checks if user is an organizer of the event
+        /// </summary>
+        private async Task<bool> CheckEventOrganizerOwnership(int userId, int eventId, MembershipType[] requiredMemberships)
+        {
+            return await _dbContext.Set<Event>()
+                .Where(e => e.Id == eventId)
+                .SelectMany(e => e.Organizers)
+                .AnyAsync(organizer => organizer.Id == userId);
         }
 
         /// <summary>

@@ -1,7 +1,13 @@
 using Microsoft.AspNetCore.SignalR;
+using Sonic.Models.Base;
 
 namespace Sonic.Models;
 
+// Event can inherit ownership from Venue (venue owners can manage events at their venue)
+// Event can inherit ownership from Organizers (users who organize the event can manage it)
+[CascadeOwnershipFrom("Venue", typeof(Venue), Priority = 10)]
+[CascadeOwnershipFrom("Organizers", typeof(User), Priority = 20)] // Multiple users as organizers
+[DirectOwnership(ResourceType.Event)] // Events can also have direct ownership
 public class Event : GenericEntity
 {
     public DateTime Date { get; set; }
