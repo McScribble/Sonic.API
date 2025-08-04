@@ -1,3 +1,5 @@
+using Sonic.API.Models.Events;
+
 namespace Sonic.Models;
 
 public class VenueDto : GenericEntity
@@ -9,5 +11,5 @@ public class VenueDto : GenericEntity
     public string? Description { get; set; }
     public List<ExternalSource> ExternalSources { get; set; } = new List<ExternalSource>();
     public List<ContactInfo> Contacts { get; set; } = new List<ContactInfo>();
-    public List<EventDto> Events { get; set; } = new List<EventDto>();
+    public List<EventSummaryDto> Events { get; set; } = new List<EventSummaryDto>();
 }

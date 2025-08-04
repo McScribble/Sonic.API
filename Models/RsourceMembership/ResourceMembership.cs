@@ -23,5 +23,7 @@ public enum ResourceType
     Event,
     Artist,
     Venue,
-    Tour
+    Tour,
+    Budget,
+    Expense
 }

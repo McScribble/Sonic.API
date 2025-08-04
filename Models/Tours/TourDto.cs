@@ -1,4 +1,6 @@
 using Sonic.Models;
+using Sonic.API.Models.Events;
+using Sonic.API.Models.Users;
 
 namespace Sonic.API.Models.Tours;
 
@@ -14,9 +16,9 @@ public class TourDto : GenericEntity
     public string? Sponsor { get; set; }
     public bool IsActive { get; set; }
     
-    // Related data (loaded based on includes)
-    public List<EventDto>? Shows { get; set; }
-    public List<UserReadDto>? Artists { get; set; }
+    // Related data (loaded based on includes) - using Summary DTOs
+    public List<EventSummaryDto>? Shows { get; set; }
+    public List<UserSummaryDto>? Artists { get; set; }
     
     // Computed properties
     public int TotalShows => Shows?.Count ?? 0;

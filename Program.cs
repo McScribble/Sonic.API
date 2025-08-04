@@ -6,6 +6,7 @@ using Sonic.API.Mapping;
 using Sonic.API.Controllers;
 using Sonic.Controllers;
 using Sonic.API.Models.Tours;
+using Sonic.API.Models.Budgets;
 using Scalar.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Serilog; // Add Serilog
@@ -128,6 +129,12 @@ builder.Services.AddScoped<IEntityService<ArtistDto, ArtistCreateDto, Artist>>(p
 builder.Services.AddScoped<IEntityService<TourDto, TourCreateDto, Tour>>(provider =>
     new EntityService<TourDto, TourCreateDto, Tour>(provider.GetRequiredService<SonicDbContext>()));
 
+builder.Services.AddScoped<IEntityService<BudgetDto, BudgetCreateDto, Budget>>(provider =>
+    new EntityService<BudgetDto, BudgetCreateDto, Budget>(provider.GetRequiredService<SonicDbContext>()));
+
+builder.Services.AddScoped<IEntityService<ExpenseDto, ExpenseCreateDto, Expense>>(provider =>
+    new EntityService<ExpenseDto, ExpenseCreateDto, Expense>(provider.GetRequiredService<SonicDbContext>()));
+
 // Replace the generic registration for Song
 // builder.Services.AddScoped<IGenericEntityService<SongDto, SongCreateDto>, GenericEntityService<Song, SongDto, SongCreateDto, SongUpdateDto>>();
 
@@ -243,11 +250,31 @@ var tourPermissions = new Dictionary<EndpointTypes, MembershipType[]>
     { EndpointTypes.Delete, new[] { MembershipType.Owner } }
 };
 
+// Budget permissions: Only owners, managers, and administrators can manage budgets
+var budgetPermissions = new Dictionary<EndpointTypes, MembershipType[]>
+{
+    { EndpointTypes.Get, new[] { MembershipType.Viewer, MembershipType.Member, MembershipType.Organizer, MembershipType.Manager, MembershipType.Owner, MembershipType.Administrator } },
+    { EndpointTypes.Create, new[] { MembershipType.Manager, MembershipType.Owner, MembershipType.Administrator } },
+    { EndpointTypes.Update, new[] { MembershipType.Manager, MembershipType.Owner, MembershipType.Administrator } },
+    { EndpointTypes.Delete, new[] { MembershipType.Owner, MembershipType.Administrator } }
+};
+
+// Expense permissions: Any member/organizer can add expenses, but only managers+ can approve/modify
+var expensePermissions = new Dictionary<EndpointTypes, MembershipType[]>
+{
+    { EndpointTypes.Get, new[] { MembershipType.Viewer, MembershipType.Member, MembershipType.Organizer, MembershipType.Manager, MembershipType.Owner, MembershipType.Administrator } },
+    { EndpointTypes.Create, new[] { MembershipType.Member, MembershipType.Organizer, MembershipType.Manager, MembershipType.Owner, MembershipType.Administrator } },
+    { EndpointTypes.Update, new[] { MembershipType.Manager, MembershipType.Owner, MembershipType.Administrator } },
+    { EndpointTypes.Delete, new[] { MembershipType.Owner, MembershipType.Administrator } }
+};
+
 // Map entity endpoints with resource membership checking
 app.MapEntityEndpoints<VenueDto, VenueCreateDto, Venue>(ResourceType.Venue, venuePermissions);
 app.MapEntityEndpoints<EventDto, EventCreateDto, Event>(ResourceType.Event, eventPermissions);
 app.MapEntityEndpoints<ArtistDto, ArtistCreateDto, Artist>(ResourceType.Artist, artistPermissions);
 app.MapEntityEndpoints<TourDto, TourCreateDto, Tour>(ResourceType.Tour, tourPermissions);
+app.MapEntityEndpoints<BudgetDto, BudgetCreateDto, Budget>(ResourceType.Budget, budgetPermissions);
+app.MapEntityEndpoints<ExpenseDto, ExpenseCreateDto, Expense>(ResourceType.Expense, expensePermissions);
 app.MapEntityEndpoints<SongDto, SongCreateDto, Song>(ResourceType.Event); // Songs don't have specific resource type yet
 app.MapEntityEndpoints<InstrumentDto, InstrumentCreateDto, Instrument>(ResourceType.Event); // Instruments don't have specific resource type yet
 app.MapMapsEndpoints();

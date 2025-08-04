@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Sonic.Models;
 using Sonic.API.Models.Tours;
+using Sonic.API.Models.Budgets;
 using System.Text.Json;
 namespace Sonic.API.Data;
 
@@ -13,6 +14,8 @@ public class SonicDbContext : DbContext
     public DbSet<Event> Events { get; set; } = null!;
     public DbSet<Venue> Venues { get; set; } = null!;
     public DbSet<Tour> Tours { get; set; } = null!;
+    public DbSet<Budget> Budgets { get; set; } = null!;
+    public DbSet<Expense> Expenses { get; set; } = null!;
     public DbSet<Instrument> Instruments { get; set; } = null!;
     public DbSet<PlaceAutocompleteResponse> PlaceAutocompleteResponses { get; set; } = null!;
     public DbSet<PlaceDetails> PlaceDetails { get; set; } = null!;
@@ -130,6 +133,94 @@ public class SonicDbContext : DbContext
                 .WithOne(e => e.Tour)
                 .HasForeignKey(e => e.TourId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ✅ Configure Budget entity
+        modelBuilder.Entity<Budget>(entity =>
+        {
+            entity.HasKey(b => b.Id);
+
+            // Configure optional relationship with Tour
+            entity.HasOne(b => b.Tour)
+                .WithMany()
+                .HasForeignKey(b => b.TourId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure optional relationship with Event
+            entity.HasOne(b => b.Event)
+                .WithMany()
+                .HasForeignKey(b => b.EventId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure cascading ownership - Artist
+            entity.HasOne(b => b.Artist)
+                .WithMany()
+                .HasForeignKey(b => b.ArtistId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure cascading ownership - Venue
+            entity.HasOne(b => b.Venue)
+                .WithMany()
+                .HasForeignKey(b => b.VenueId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure one-to-many relationship with Expenses
+            entity.HasMany(b => b.Expenses)
+                .WithOne(e => e.Budget)
+                .HasForeignKey(e => e.BudgetId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure table with check constraint
+            entity.ToTable("Budgets", t => 
+                t.HasCheckConstraint("CK_Budget_Owner", 
+                    "(\"ArtistId\" IS NOT NULL AND \"VenueId\" IS NULL) OR (\"ArtistId\" IS NULL AND \"VenueId\" IS NOT NULL)"));
+
+            // Add indexes for performance
+            entity.HasIndex(b => b.ArtistId);
+            entity.HasIndex(b => b.VenueId);
+            entity.HasIndex(b => b.TourId);
+            entity.HasIndex(b => b.EventId);
+            entity.HasIndex(b => new { b.StartDate, b.EndDate });
+        });
+
+        // ✅ Configure Expense entity
+        modelBuilder.Entity<Expense>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Configure required relationship with Budget
+            entity.HasOne(e => e.Budget)
+                .WithMany(b => b.Expenses)
+                .HasForeignKey(e => e.BudgetId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure relationship with SubmittedByUser
+            entity.HasOne(e => e.SubmittedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.SubmittedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure optional relationship with ApprovedByUser
+            entity.HasOne(e => e.ApprovedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure JSON property for Attachments
+            entity.Property(e => e.Attachments)
+                .HasConversion(
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>()
+                )
+                .HasColumnType("jsonb");
+
+            // Add indexes for performance
+            entity.HasIndex(e => e.BudgetId);
+            entity.HasIndex(e => e.SubmittedByUserId);
+            entity.HasIndex(e => e.ApprovedByUserId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.ExpenseDate);
+            entity.HasIndex(e => e.Category);
         });
 
         modelBuilder.Entity<Venue>(entity =>

@@ -1,4 +1,6 @@
 using Sonic.API.Models.Tours;
+using Sonic.API.Models.Events;
+using Sonic.API.Models.Artists;
 
 namespace Sonic.Models;
 
@@ -17,9 +19,9 @@ public class UserDto : GenericEntity
     public required bool IsAdmin { get; set; }
     public List<ContactInfo> Contacts { get; set; } = new();
     
-    // Navigation properties (loaded based on includes)
-    public List<EventDto>? AttendedEvents { get; set; }
-    public List<EventDto>? OrganizedEvents { get; set; }
-    public List<ArtistDto>? Artists { get; set; }
+    // Navigation properties (loaded based on includes) - using Summary DTOs
+    public List<EventSummaryDto>? AttendedEvents { get; set; }
+    public List<EventSummaryDto>? OrganizedEvents { get; set; }
+    public List<ArtistSummaryDto>? Artists { get; set; }
     public List<TourSummaryDto>? Tours { get; set; }
 }
