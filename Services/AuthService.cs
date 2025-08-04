@@ -23,7 +23,6 @@ namespace Sonic.API.Services
 
             // Find user by username (case-insensitive)
             var user = await context.Users
-                .Include(u => u.Contacts)
                 .FirstOrDefaultAsync(u => u.Username.ToLower() == usernameLower);
 
             // Verify password first to prevent timing attacks
@@ -57,13 +56,25 @@ namespace Sonic.API.Services
             var usernameLower = userDto.Username?.ToLower();
             var emailLower = userDto.Email?.ToLower();
 
-            // Check for existing username or email in contacts
-            var existingUser = await context.Users
-                .Include(u => u.Contacts)
-                .AnyAsync(u => u.Username.ToLower() == usernameLower || 
-                              u.Contacts.Any(c => c.Type == "Email" && c.Value.ToLower() == emailLower));
+            // Check for existing username
+            var existingUserByUsername = await context.Users
+                .AnyAsync(u => u.Username.ToLower() == usernameLower);
 
-            if (existingUser)
+            if (existingUserByUsername)
+            {
+                throw new ArgumentException("User registration failed: username already exists.");
+            }
+
+            // Check for existing email by loading all users and checking contacts in memory
+            // Note: This is less efficient but necessary since Contacts is stored as JSON
+            var usersWithEmails = await context.Users
+                .Where(u => u.Contacts != null)
+                .ToListAsync();
+            
+            var existingUserByEmail = usersWithEmails
+                .Any(u => u.Contacts.Any(c => c.Type == "Email" && c.Value.ToLower() == emailLower));
+
+            if (existingUserByUsername || existingUserByEmail)
             {
                 throw new ArgumentException("User registration failed: username or email already exists.");
             }
@@ -193,9 +204,13 @@ namespace Sonic.API.Services
             }
 
             // Check if user exists in the database with this email in contacts
-            var user = await context.Users
-                .Include(u => u.Contacts)
-                .FirstOrDefaultAsync(u => u.Contacts.Any(c => c.Type == "Email" && c.Value.ToLower() == email.ToLower()));
+            // Load all users and check contacts in memory since Contacts is stored as JSON
+            var allUsers = await context.Users
+                .Where(u => u.Contacts != null)
+                .ToListAsync();
+                
+            var user = allUsers
+                .FirstOrDefault(u => u.Contacts.Any(c => c.Type == "Email" && c.Value.ToLower() == email.ToLower()));
                 
             if (user is null)
             {
@@ -213,7 +228,6 @@ namespace Sonic.API.Services
 
                 // Get the user from database
                 user = await context.Users
-                    .Include(u => u.Contacts)
                     .FirstOrDefaultAsync(u => u.Id == userCreated.Id);
                 if (user is null)
                 {
