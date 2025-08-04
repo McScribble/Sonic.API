@@ -19,7 +19,7 @@ public static class AuthControllerExtensions
             catch (ArgumentException ex)
             {
                 Log.Warning($"User registration failed: {ex.Message}");
-                return Results.BadRequest(ex.Message);
+                return Results.BadRequest("User Registration Failed.");
             }
             catch (Exception ex)
             {
@@ -40,7 +40,7 @@ public static class AuthControllerExtensions
             try
             {
                 var tokenResponse = await service.LoginAsync(loginDto);
-                Log.Information("User logged in successfully: {Login}", loginDto.Email ?? loginDto.Username);
+                Log.Information("User logged in successfully: {Login}", loginDto.Username);
 
                 // DON'T set cookies server-side anymore
                 // Just return the token response for client-side handling

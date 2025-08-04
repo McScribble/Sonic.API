@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Sonic.API.Data;
 using Sonic.Models;
 using Sonic.API.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace Sonic.API.Services
 {
@@ -11,7 +12,9 @@ namespace Sonic.API.Services
     {
         public Task<UserReadDto> GetUserByIdAsync(int userId)
         {
-            var user = context.Users.FirstOrDefault(u => u.Id == userId);
+            var user = context.Users
+                .Include(u => u.Contacts)
+                .FirstOrDefault(u => u.Id == userId);
             if (user == null)
                 throw new ArgumentException("User not found");
 
@@ -20,7 +23,6 @@ namespace Sonic.API.Services
                 Name = user.Name!,
                 Id = user.Id,
                 Username = user.Username,
-                Email = user.Email,
                 IsAdmin = user.IsAdmin,
                 FirstName = user.FirstName!,
                 LastName = user.LastName!,
@@ -28,7 +30,8 @@ namespace Sonic.API.Services
                 UpdatedAt = user.UpdatedAt,
                 IsActive = user.IsActive,
                 IsConfirmed = user.IsConfirmed,
-                Uuid = user.Uuid
+                Uuid = user.Uuid,
+                Contacts = user.Contacts
             };
 
             return Task.FromResult(userDto);
@@ -36,7 +39,7 @@ namespace Sonic.API.Services
 
         public Task<IEnumerable<User>> GetAllUsersAsync()
         {
-            return Task.FromResult<IEnumerable<User>>(context.Users.ToList());
+            return Task.FromResult<IEnumerable<User>>(context.Users.Include(u => u.Contacts).ToList());
         }
 
         public Task<IEnumerable<User>> GetAllUsersAsync(int skip, int take)
@@ -46,6 +49,7 @@ namespace Sonic.API.Services
             take = Math.Max(take, 1);   // Min 1 user per request
             
             var users = context.Users
+                .Include(u => u.Contacts)
                 .OrderBy(u => u.Id) // Consistent ordering for pagination
                 .Skip(skip)
                 .Take(take)
@@ -61,18 +65,23 @@ namespace Sonic.API.Services
 
         public Task<TokenResponseDto> UpdateUserAsync(UserUpdateDto user, int userId)
         {
-            var existingUser = context.Users.FirstOrDefault(u => u.Id == userId);
+            var existingUser = context.Users
+                .Include(u => u.Contacts)
+                .FirstOrDefault(u => u.Id == userId);
             if (existingUser == null)
             {
                 throw new ArgumentException("User not found");
             }
 
             existingUser.Username = user.Username;
-            existingUser.Email = user.Email;
             existingUser.IsAdmin = user.IsAdmin;
             existingUser.FirstName = user.FirstName;
             existingUser.LastName = user.LastName;
             existingUser.UpdatedAt = DateTime.UtcNow;
+
+            // Update contacts - ensure the email from the DTO is added as primary contact
+            var contacts = ContactInfoHelper.EnsureEmailContact(new List<ContactInfo>(user.Contacts), user.Email, "Primary");
+            existingUser.Contacts = contacts;
 
             context.Users.Update(existingUser);
             context.SaveChanges();
@@ -93,7 +102,9 @@ namespace Sonic.API.Services
         
         public Task<User> GetUserByUsernameAsync(string username)
         {
-            var user = context.Users.FirstOrDefault(u => u.Username == username);
+            var user = context.Users
+                .Include(u => u.Contacts)
+                .FirstOrDefault(u => u.Username == username);
             if (user == null)
                 throw new ArgumentException("User not found");
             return Task.FromResult(user);

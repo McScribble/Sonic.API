@@ -13,35 +13,33 @@ namespace Sonic.API.Services
         {
             // Validate input
             if (loginDto is null ||
-            (string.IsNullOrWhiteSpace(loginDto.Email) && string.IsNullOrWhiteSpace(loginDto.Username)) ||
+            string.IsNullOrWhiteSpace(loginDto.Username) ||
             string.IsNullOrEmpty(loginDto.Password))
             {
                 throw new ArgumentException("Login failed: invalid login data.");
             }
 
-            var emailLower = loginDto.Email?.ToLower();
             var usernameLower = loginDto.Username?.ToLower();
 
-            // Find user by email or username (case-insensitive)
-            var user = await context.Users.FirstOrDefaultAsync(u =>
-            (!string.IsNullOrEmpty(emailLower) && u.Email.ToLower() == emailLower) ||
-            (!string.IsNullOrEmpty(usernameLower) && u.Username.ToLower() == usernameLower)
-            );
+            // Find user by username (case-insensitive)
+            var user = await context.Users
+                .Include(u => u.Contacts)
+                .FirstOrDefaultAsync(u => u.Username.ToLower() == usernameLower);
 
             // Verify password first to prevent timing attacks
             var isPasswordValid = SonicIdentity.VerifyPassword(loginDto.Password, user?.PasswordSalt ?? "", user?.PasswordHash ?? "");
 
-            Log.Information("Login attempt for: {Login}", loginDto.Email ?? loginDto.Username);
+            Log.Information("Login attempt for: {Login}", loginDto.Username);
 
             // Check if user exists and verify password
             if (user is null || !isPasswordValid)
             {
-                Log.Warning("Login failed: user not found or invalid password for {Login}", loginDto.Email ?? loginDto.Username);
+                Log.Warning("Login failed: user not found or invalid password for {Login}", loginDto.Username);
                 throw new UnauthorizedAccessException("Login failed: invalid credentials.");
             }
 
             // Generate JWT token
-            Log.Information("Login successful for {Login}", loginDto.Email ?? loginDto.Username);
+            Log.Information("Login successful for {Login}", loginDto.Username);
 
             return await CreateTokenResponseAsync(user);
         }
@@ -49,6 +47,7 @@ namespace Sonic.API.Services
         public async Task<UserCreatedDto> RegisterAsync(UserRegisterDto userDto, bool external = false)
         {
             Log.Information($"Attempting user registration for {userDto.Username}");
+            
             // Validate input
             if (userDto is null || string.IsNullOrWhiteSpace(userDto.Username) || string.IsNullOrWhiteSpace(userDto.Email) || (string.IsNullOrWhiteSpace(userDto.Password) && !external))
             {
@@ -58,21 +57,28 @@ namespace Sonic.API.Services
             var usernameLower = userDto.Username?.ToLower();
             var emailLower = userDto.Email?.ToLower();
 
-            if (await context.Users.AnyAsync(u =>
-            u.Username.ToLower() == usernameLower || u.Email.ToLower() == emailLower))
+            // Check for existing username or email in contacts
+            var existingUser = await context.Users
+                .Include(u => u.Contacts)
+                .AnyAsync(u => u.Username.ToLower() == usernameLower || 
+                              u.Contacts.Any(c => c.Type == "Email" && c.Value.ToLower() == emailLower));
+
+            if (existingUser)
             {
                 throw new ArgumentException("User registration failed: username or email already exists.");
             }
 
             // Generate salt and hash password
             var passwordSalt = Guid.NewGuid().ToString();
-;
+
+            // Create contacts list and ensure the email from the DTO is added as primary contact
+            var contacts = ContactInfoHelper.EnsureEmailContact(new List<ContactInfo>(userDto.Contacts), userDto.Email!, "Primary");
+
             var user = new User
             {
                 Name = userDto.Username!,
                 Uuid = Guid.NewGuid(),
                 Username = userDto.Username!,
-                Email = userDto.Email!,
                 FirstName = userDto.FirstName,
                 LastName = userDto.LastName,
                 CreatedAt = DateTime.UtcNow,
@@ -80,6 +86,7 @@ namespace Sonic.API.Services
                 PasswordSalt = string.IsNullOrWhiteSpace(userDto.Password) ? null : passwordSalt,
                 PasswordHash = string.IsNullOrWhiteSpace(userDto.Password) ? null : SonicIdentity.HashPassword(userDto.Password, passwordSalt),
                 IsAdmin = false, // Default to non-admin
+                Contacts = contacts
             };
 
             // Add user to database
@@ -94,11 +101,11 @@ namespace Sonic.API.Services
                 Id = createdUser.Id,
                 Uuid = createdUser.Uuid,
                 Username = createdUser.Username,
-                Email = createdUser.Email,
                 FirstName = createdUser.FirstName,
                 LastName = createdUser.LastName,
                 CreatedAt = createdUser.CreatedAt,
-                UpdatedAt = createdUser.UpdatedAt
+                UpdatedAt = createdUser.UpdatedAt,
+                Contacts = createdUser.Contacts
             };
 
             return createdUserDto;
@@ -185,8 +192,11 @@ namespace Sonic.API.Services
                 throw new ArgumentException("Invalid Google login data.");
             }
 
-            // Check if user exists in the database
-            var user = await context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+            // Check if user exists in the database with this email in contacts
+            var user = await context.Users
+                .Include(u => u.Contacts)
+                .FirstOrDefaultAsync(u => u.Contacts.Any(c => c.Type == "Email" && c.Value.ToLower() == email.ToLower()));
+                
             if (user is null)
             {
                 // Register new user if not found
@@ -196,12 +206,15 @@ namespace Sonic.API.Services
                     Username = email.Split('@')[0], // Use email prefix as username
                     Email = email,
                     FirstName = claimsPrincipal.FindFirst(ClaimTypes.GivenName)?.Value,
-                    LastName = claimsPrincipal.FindFirst(ClaimTypes.Surname)?.Value
+                    LastName = claimsPrincipal.FindFirst(ClaimTypes.Surname)?.Value,
+                    Contacts = new List<ContactInfo>()
                 };
                 var userCreated = await RegisterAsync(userDto, true);
 
                 // Get the user from database
-                user = await context.Users.FirstOrDefaultAsync(u => u.Id == userCreated.Id);
+                user = await context.Users
+                    .Include(u => u.Contacts)
+                    .FirstOrDefaultAsync(u => u.Id == userCreated.Id);
                 if (user is null)
                 {
                     throw new InvalidOperationException("Failed to retrieve created user.");

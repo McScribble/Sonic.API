@@ -5,7 +5,6 @@ namespace Sonic.Models;
 public class User : GenericEntity
 {
     public required string Username { get; set; }
-    public required string Email { get; set; }
     public string? PasswordHash { get; set; }
     public string? PasswordSalt { get; set; }
     public string? FirstName { get; set; }
@@ -22,4 +21,17 @@ public class User : GenericEntity
     public List<Tour> Tours { get; set; } = new();
     public List<ResourceMembership> ResourceMemberships { get; set; } = new();
     public List<ContactInfo> Contacts { get; set; } = new();
+    
+    /// <summary>
+    /// Computed property to get the primary email from contacts
+    /// </summary>
+    public string? Email => ContactInfoHelper.GetPrimaryEmail(Contacts);
+    
+    /// <summary>
+    /// Helper method to update the primary email
+    /// </summary>
+    public void UpdatePrimaryEmail(string email)
+    {
+        Contacts = ContactInfoHelper.UpdatePrimaryEmail(Contacts, email);
+    }
 }
