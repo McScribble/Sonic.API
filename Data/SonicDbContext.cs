@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Sonic.Models;
+using Sonic.API.Models.Tours;
 using System.Text.Json;
 namespace Sonic.API.Data;
 
@@ -11,6 +12,7 @@ public class SonicDbContext : DbContext
     public DbSet<Song> Songs { get; set; } = null!;
     public DbSet<Event> Events { get; set; } = null!;
     public DbSet<Venue> Venues { get; set; } = null!;
+    public DbSet<Tour> Tours { get; set; } = null!;
     public DbSet<Instrument> Instruments { get; set; } = null!;
     public DbSet<PlaceAutocompleteResponse> PlaceAutocompleteResponses { get; set; } = null!;
     public DbSet<PlaceDetails> PlaceDetails { get; set; } = null!;
@@ -111,6 +113,23 @@ public class SonicDbContext : DbContext
             entity.HasMany(e => e.Organizers)
                 .WithMany(u => u.OrganizedEvents)
                 .UsingEntity(j => j.ToTable("EventOrganizers"));
+        });
+
+        // ✅ Configure Tour entity
+        modelBuilder.Entity<Tour>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+
+            // Configure the many-to-many relationship with Artists (Users)
+            entity.HasMany(t => t.Artists)
+                .WithMany(u => u.Tours)
+                .UsingEntity(j => j.ToTable("TourArtists"));
+
+            // Configure the one-to-many relationship with Events (Shows)
+            entity.HasMany(t => t.Shows)
+                .WithOne(e => e.Tour)
+                .HasForeignKey(e => e.TourId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Venue>(entity =>

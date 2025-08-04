@@ -5,6 +5,7 @@ using Sonic.API.Services;
 using Sonic.API.Mapping;
 using Sonic.API.Controllers;
 using Sonic.Controllers;
+using Sonic.API.Models.Tours;
 using Scalar.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Serilog; // Add Serilog
@@ -124,6 +125,9 @@ builder.Services.AddScoped<IEntityService<EventDto, EventCreateDto, Event>>(prov
 builder.Services.AddScoped<IEntityService<ArtistDto, ArtistCreateDto, Artist>>(provider =>
     new EntityService<ArtistDto, ArtistCreateDto, Artist>(provider.GetRequiredService<SonicDbContext>()));
 
+builder.Services.AddScoped<IEntityService<TourDto, TourCreateDto, Tour>>(provider =>
+    new EntityService<TourDto, TourCreateDto, Tour>(provider.GetRequiredService<SonicDbContext>()));
+
 // Replace the generic registration for Song
 // builder.Services.AddScoped<IGenericEntityService<SongDto, SongCreateDto>, GenericEntityService<Song, SongDto, SongCreateDto, SongUpdateDto>>();
 
@@ -232,10 +236,18 @@ var artistPermissions = new Dictionary<EndpointTypes, MembershipType[]>
     { EndpointTypes.Delete, new[] { MembershipType.Owner } }
 };
 
+var tourPermissions = new Dictionary<EndpointTypes, MembershipType[]>
+{
+    { EndpointTypes.Get, new[] { MembershipType.Viewer, MembershipType.Member, MembershipType.Manager, MembershipType.Owner } },
+    { EndpointTypes.Update, new[] { MembershipType.Manager, MembershipType.Owner } },
+    { EndpointTypes.Delete, new[] { MembershipType.Owner } }
+};
+
 // Map entity endpoints with resource membership checking
 app.MapEntityEndpoints<VenueDto, VenueCreateDto, Venue>(ResourceType.Venue, venuePermissions);
 app.MapEntityEndpoints<EventDto, EventCreateDto, Event>(ResourceType.Event, eventPermissions);
 app.MapEntityEndpoints<ArtistDto, ArtistCreateDto, Artist>(ResourceType.Artist, artistPermissions);
+app.MapEntityEndpoints<TourDto, TourCreateDto, Tour>(ResourceType.Tour, tourPermissions);
 app.MapEntityEndpoints<SongDto, SongCreateDto, Song>(ResourceType.Event); // Songs don't have specific resource type yet
 app.MapEntityEndpoints<InstrumentDto, InstrumentCreateDto, Instrument>(ResourceType.Event); // Instruments don't have specific resource type yet
 app.MapMapsEndpoints();

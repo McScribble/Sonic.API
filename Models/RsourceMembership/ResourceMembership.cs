@@ -22,5 +22,6 @@ public enum ResourceType
 {
     Event,
     Artist,
-    Venue
+    Venue,
+    Tour
 }

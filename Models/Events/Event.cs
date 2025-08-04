@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Sonic.Models.Base;
+using Sonic.API.Models.Tours;
 
 namespace Sonic.Models;
 
@@ -17,6 +18,8 @@ public class Event : GenericEntity
 
     // ✅ Navigation properties
     public Venue? Venue { get; set; }
+    public int? TourId { get; set; }
+    public Tour? Tour { get; set; }
     public List<User> Attendees { get; set; } = new();
 
     public List<User> Organizers { get; set; } = new();

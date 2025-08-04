@@ -1,3 +1,5 @@
+using Sonic.API.Models.Tours;
+
 namespace Sonic.Models;
 
 public class User : GenericEntity
@@ -17,6 +19,7 @@ public class User : GenericEntity
     public List<Event> AttendedEvents { get; set; } = new();
     public List<Event> OrganizedEvents { get; set; } = new();
     public List<Artist> Artists { get; set; } = new();
+    public List<Tour> Tours { get; set; } = new();
     public List<ResourceMembership> ResourceMemberships { get; set; } = new();
     public List<ContactInfo> Contacts { get; set; } = new();
 }
